@@ -1211,11 +1211,6 @@ int main(int argc, char *argv[])
                 Ncrom =ncromos= 0;
             }
         }
-        // else
-        // {
-        //     std::cerr << "Genetic size in Morgans not specified" << std::endl;
-        //     return -1;
-        // }
     }
     if (flag_z){
         if (flag_Gs){
@@ -1784,13 +1779,11 @@ int main(int argc, char *argv[])
             {
                 tacui/=(_containdX*2);
                 tacuj/=(_containdX*2);
-                // W = frec[*ppj] * frec[*ppi];
                 W = tacui*tacuj;
                 D = -2 * W + (2 * tacuHoHo + tacuHoHetHetHo + tacuHetHet / 2) / _containdX;
                 D *= D;
-                // W *= (1 - frec[*ppj]) * (1 - frec[*ppi]);
                 W *= (1 - tacui) * (1 - tacuj);
-                 if (flag_chr)
+                if (flag_chr)
                 {
                     if ((cromo[*ppi] != cromo[*ppj]))
                     {
@@ -1798,7 +1791,6 @@ int main(int argc, char *argv[])
                         x_containdX05[j3] += _containdX;
                         xD05[j3] += D;
                         xW05[j3] += W;
-                        // xr205[j3] += D / W; <<<<<XXXXXXX
                     }
                     else
                     {
@@ -1809,7 +1801,6 @@ int main(int argc, char *argv[])
                                 x_containdXlink[j3] += _containdX;
                                 xDlink[j3] += D;
                                 xWlink[j3] += W;
-                                // xr2link[j3] += D / W; <<<<<XXXXXXX
                             }
                         }
                         else{
@@ -1926,8 +1917,6 @@ int main(int argc, char *argv[])
     salida << "# Total number of individuals in the input file:\n";
     salida << std::fixed << std::setprecision(0);
     salida << popInfo.numIndividuals << "\n";
-    // salida << "# Number of individuals included in the analysis:\n";
-    // salida << eneind<<"\n";
     salida << std::fixed << std::setprecision(2);
     salida << "# Effective Number of individuals included in the analysis (excluding missing genotypes):\n";
     salida << effeneind << "\n";
@@ -1938,10 +1927,6 @@ int main(int argc, char *argv[])
     salida << eneloc << "\n";
     salida << "# Number of SNP pairs included in the analysis:\n";
     salida << n_SNP_pairs << "\n";
-    // salida << "# Expected amount of raw data (= individuals x SNPs pairs):\n";
-    // salida << obsndata << "\n";
-    // salida << "# Effective amount of raw data (may differ from the above one due to missing genotypes):\n";
-    // salida << effndata << "\n";
     salida << std::fixed << std::setprecision(8);
     salida << "# Proportion of missing data:\n";
     salida << propmiss << "\n";
@@ -1965,19 +1950,13 @@ int main(int argc, char *argv[])
     salida << "# OUTPUT PARAMETERS:\n";
     salida << "# Observed d^2 of the entire sample (weighted correlation of loci pairs):\n";
     salida << d2s << "\n";
-    // salida << "# Observed r^2 of the entire sample (Pearson correlation of loci pairs):\n";
-    // salida << acur2 << "\n";  <<<<<XXXXXXX
     d2_pob = (d2s - (4 * double(effeneind) - 4) / ((2 * double(effeneind) - 1) * (2 * double(effeneind) - 1))) / ((1 - 1 / (2 * double(effeneind))) * 0.25); // APROXIMADO
     if (flag_chr)
     {
         salida << "# Observed d^2 of the sample (only between different chromosomes):\n";
         salida << d2s05 << "\n";
-        // salida << "# Observed r^2 of the sample (only between different chromosomes):\n";
-        // salida << acur205 << "\n";
         salida << "# Observed d^2 of the sample (within chromosomes):\n";
         salida << d2slink << "\n";
-        // salida << "# Observed r^2 of the sample (within chromosomes)::\n";
-        // salida << acur2link << "\n";
     }
     salida << "# Expected heterozygosity of the individuals in the sample under H-W eq.:\n";
     salida << 2 * Het_esp << "\n";

@@ -113,6 +113,7 @@ int *ppk;
 int *ppj;
 int ss, _containdX;
 double tacuHoHo, tacuHoHetHetHo, tacuHetHet;
+double tacui, tacuj;
 double D, W, r2, distancia;
 int jj2, jj3, id;
 
@@ -803,6 +804,7 @@ void readFile_vcf(std::string fichinput1, char (&population)[MAXIND][MAXLOCI], P
                     break;
                 }
             }
+        
             if (!rightletter)
             {
                 std::cerr << "Wrong alternative allele in line " << nline << " of vcf file. Only bases A, G, C and T (case-insensitive) are allowed." << std::endl;
@@ -1216,7 +1218,7 @@ int main(int argc, char *argv[])
         // }
     }
     if (flag_z){
-        if (flag_Gs || params.s<2){
+        if (flag_Gs){
             std::cerr << "Option z is not compatible with the assignation of a genome size in the command line." << std::endl;
             return -1;
         }
@@ -1741,11 +1743,12 @@ int main(int argc, char *argv[])
     for (j2 = 0; j2 < eneloc - 1; ++j2)
     {
         ppj = &valid_idx[j2];
-#pragma omp parallel for private(tacuHoHo, distancia, id, tacuHoHetHetHo, tacuHetHet, ppk, ppi, D, W, r2, ss, _containdX)
+#pragma omp parallel for private(tacui,tacuj,tacuHoHo, distancia, id, tacuHoHetHetHo, tacuHetHet, ppk, ppi, D, W, r2, ss, _containdX)
         for (j3 = j2 + 1; j3 < eneloc; ++j3)
         {
             ppi = &valid_idx[j3];
             tacuHoHo = tacuHoHetHetHo = tacuHetHet = 0; // acumuladores de genotipos
+            tacui=tacuj=0;
             ppk = prefind;
             _containdX = 0;
             for (int _i = 0; _i < eneind; ++_i)
@@ -1753,6 +1756,8 @@ int main(int argc, char *argv[])
                 ss = indi[*ppk][*ppj] + indi[*ppk][*ppi];
                 if (ss < 9)
                 {
+                    tacui+=indi[*ppk][*ppi];
+                    tacuj+=indi[*ppk][*ppj];
                     ++_containdX;
                     if (ss < 2)
                     {
@@ -1777,11 +1782,15 @@ int main(int argc, char *argv[])
             }
             if (_containdX > 1)
             {
-                W = frec[*ppj] * frec[*ppi];
+                tacui/=(_containdX*2);
+                tacuj/=(_containdX*2);
+                // W = frec[*ppj] * frec[*ppi];
+                W = tacui*tacuj;
                 D = -2 * W + (2 * tacuHoHo + tacuHoHetHetHo + tacuHetHet / 2) / _containdX;
                 D *= D;
-                W *= (1 - frec[*ppj]) * (1 - frec[*ppi]);
-                if (flag_chr)
+                // W *= (1 - frec[*ppj]) * (1 - frec[*ppi]);
+                W *= (1 - tacui) * (1 - tacuj);
+                 if (flag_chr)
                 {
                     if ((cromo[*ppi] != cromo[*ppj]))
                     {
@@ -1789,7 +1798,7 @@ int main(int argc, char *argv[])
                         x_containdX05[j3] += _containdX;
                         xD05[j3] += D;
                         xW05[j3] += W;
-                        xr205[j3] += D / W;
+                        // xr205[j3] += D / W; <<<<<XXXXXXX
                     }
                     else
                     {
@@ -1800,7 +1809,7 @@ int main(int argc, char *argv[])
                                 x_containdXlink[j3] += _containdX;
                                 xDlink[j3] += D;
                                 xWlink[j3] += W;
-                                xr2link[j3] += D / W;
+                                // xr2link[j3] += D / W; <<<<<XXXXXXX
                             }
                         }
                         else{
@@ -1808,7 +1817,7 @@ int main(int argc, char *argv[])
                             x_containdXlink[j3] += _containdX;
                             xDlink[j3] += D;
                             xWlink[j3] += W;
-                            xr2link[j3] += D / W;
+                            // xr2link[j3] += D / W; <<<<<XXXXXXX
                         }
                     }
                 }
@@ -1818,7 +1827,7 @@ int main(int argc, char *argv[])
                     x_containdX[j3] += _containdX;
                     xD[j3] += D;
                     xW[j3] += W;
-                    xr2[j3] += D / W;
+                    // xr2[j3] += D / W; <<<<<XXXXXXX
                 }
             }
 
@@ -1839,7 +1848,7 @@ int main(int argc, char *argv[])
             effndata05 += x_containdX05[j3];
             acuD205 += xD05[j3];
             acuW05 += xW05[j3];
-            acur205 += xr205[j3];
+            // acur205 += xr205[j3]; <<<<<XXXXXXX
         }
         for (j3 = 0; j3 < eneloc; ++j3)
         {
@@ -1847,24 +1856,24 @@ int main(int argc, char *argv[])
             effndatalink += x_containdXlink[j3];
             acuD2link += xDlink[j3];
             acuWlink += xWlink[j3];
-            acur2link += xr2link[j3];
+            // acur2link += xr2link[j3]; <<<<<XXXXXXX
         }
         acun = acun05 + acunlink;
         effndata = effndata05 + effndatalink;
         d2s = (acuD205 + acuD2link) / (acuW05 + acuWlink);
         acuD2 = (acuD205 + acuD2link) / acun;
         acuW = (acuW05 + acuWlink) / acun;
-        acur2 = (acur205 + acur2link) / acun;
+        // acur2 = (acur205 + acur2link) / acun; <<<<<XXXXXXX
 
         d2s05 = acuD205 / acuW05;
         acuD205 /= acun05;
         acuW05 /= acun05;
-        acur205 /= acun05;
+        // acur205 /= acun05; <<<<<XXXXXXX
 
         d2slink = acuD2link / acuWlink;
         acuD2link /= acunlink;
         acuWlink /= acunlink;
-        acur2link /= acunlink;
+        // acur2link /= acunlink; <<<<<XXXXXXX
     }
     else
     {
@@ -1874,18 +1883,19 @@ int main(int argc, char *argv[])
             effndata += x_containdX[j3];
             acuD2 += xD[j3];
             acuW += xW[j3];
-            acur2 += xr2[j3];
+            // acur2 += xr2[j3]; <<<<<XXXXXXX
         }
         d2s = acuD2 / acuW;
         acuD2 /= acun;
         acuW /= acun;
-        acur2 /= acun;
+        // acur2 /= acun; <<<<<XXXXXXX
     }
 
     obsndata = double(eneind) * (double(eneloc) * (double(eneloc) - 1.0)) / 2.0;
-    propmiss = 1.0 - effndata / obsndata;
+    // propmiss = 1.0 - effndata / obsndata; <<<<<XXXXXXX
     n_SNP_pairs = (double(eneloc) * double(eneloc - 1)) / 2.0;
     effeneind = effndata / acun;
+    propmiss = 1.0 - effeneind / eneind; // <<<<<XXXXXXX
     Wt=acuW/(1-2/(2*effeneind+1));
 
     std::stringstream salida0;
@@ -1955,19 +1965,19 @@ int main(int argc, char *argv[])
     salida << "# OUTPUT PARAMETERS:\n";
     salida << "# Observed d^2 of the entire sample (weighted correlation of loci pairs):\n";
     salida << d2s << "\n";
-    salida << "# Observed r^2 of the entire sample (Pearson correlation of loci pairs):\n";
-    salida << acur2 << "\n";
+    // salida << "# Observed r^2 of the entire sample (Pearson correlation of loci pairs):\n";
+    // salida << acur2 << "\n";  <<<<<XXXXXXX
     d2_pob = (d2s - (4 * double(effeneind) - 4) / ((2 * double(effeneind) - 1) * (2 * double(effeneind) - 1))) / ((1 - 1 / (2 * double(effeneind))) * 0.25); // APROXIMADO
     if (flag_chr)
     {
         salida << "# Observed d^2 of the sample (only between different chromosomes):\n";
         salida << d2s05 << "\n";
-        salida << "# Observed r^2 of the sample (only between different chromosomes):\n";
-        salida << acur205 << "\n";
+        // salida << "# Observed r^2 of the sample (only between different chromosomes):\n";
+        // salida << acur205 << "\n";
         salida << "# Observed d^2 of the sample (within chromosomes):\n";
         salida << d2slink << "\n";
-        salida << "# Observed r^2 of the sample (within chromosomes)::\n";
-        salida << acur2link << "\n";
+        // salida << "# Observed r^2 of the sample (within chromosomes)::\n";
+        // salida << acur2link << "\n";
     }
     salida << "# Expected heterozygosity of the individuals in the sample under H-W eq.:\n";
     salida << 2 * Het_esp << "\n";

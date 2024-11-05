@@ -1,22 +1,32 @@
 # currentNe2
 Estimation of current effective population using artificial neural networks
-# Prerequisites
-### g++
+# System Requirements 
+## Hardware requirements
+`currentne2` requires only a standard computer with enough RAM to support the in-memory operations
+## Software requirements
+### OS Requirements
+This program has been tested on the following operating sytems but should work on most linux distributions:
+  - Linux: Ubuntu 20.04, Arch Linux (kernel 6.11.6), Debian Buster
+### Software required for compiling
+#### g++
 It should be included in (almost) every linux distribution. To install it in debian-like distributions:
 ```
 sudo apt install g++
 ```
-### make
-This is only needed if you want to use the make commands to compile the program. You could directly compile it using g++.To install it just run the following command (in debian-like distributions):
-```
-sudo apt install make
-```
-### openmp
+#### openmp
 Depending on your operating system, you may need to install openmp
 ```
 sudo apt install libomp-dev
 ```
+#### make
+This is only needed if you want to use the make commands to compile the program. You could directly compile it using g++. To install it just run the following command (in debian-like distributions):
+```
+sudo apt install make
+```
 # Installation
+## Pre-built version
+You can download the prebuilt version on the releases section of this repo.
+## Compiling
 Clone the github repo:
 ```
 git clone https://github.com/esrud/currentNe2
@@ -26,16 +36,12 @@ Compile:
 cd currentNe2
 make
 ```
-Another way to compile the program, which will link it statically:
-```
-make static
-```
-The program has been tested on Arch Linux, Ubuntu 20.04 and Debian Buster, using g++ version 7.2.0 and above as a compiler.
-
 # Usage
-Please note that the program needs at least 3 Gb of free RAM to be able to run. This is dependent on the amount of loci and individuals to be sampled, as well as the maximum number of chromosomes and the maximum distance between loci.
-This can be increased (or reduced) by tweaking the constants *MAXLOCI*, *MAXIND*, *MAXCROMO* and *MAXDIST* respectively.
+Please note that the program makes extensive use of RAM memory. This is dependent on the amount of loci and individuals to be sampled, as well as the maximum number of chromosomes and the maximum distance between loci.
+This can be increased (or reduced) by tweaking the constants *MAXLOCI*, *MAXIND*, *MAXCROMO* and *MAXDIST* respectively in the source code.
 Note that increasing those values will increase the free RAM requirements.
+
+If no output path is provided (option -o), running the program will produce a file with the same name as the input file (without the extension) with the added suffix of *_currentNe2_OUTPUT.txt* or *_currentNe2_mix_OUTPUT.txt* when running the program with "-x". This file is stored in the same path as the analyzed data.
 ```
 currentNe2 - Current Ne estimator (v 2.0 - March 2024)
 Authors: Enrique Santiago - Carlos Köpke
@@ -121,4 +127,29 @@ EXAMPLES:
    - If 0.2 full siblings per individual are OBSERVED IN THE SAMPLE:
          ./currentne2 -k -0.2 filename 20
      (NOTE the MINUS SIGN before the number of full sibling 0.2)
+```
+# Demo
+In this repo we provide some sample data for testing purposes. Here are two examples on how to test `currentne2` on this data:
+- Random mating. Genetic distances between markers are obtained from the physical locations in the input file, using a constant rate of 1cM/Mb:
+
+```
+# Decompress the sample data
+tar -xvf example/sample_data.tar.gz -C ./example
+
+# Run currentne2 on the sample data. This should take 5-10 min
+./currentne2 -r 1 example/baddoch_clean.ped
+
+# Once it finishes running you can check the resulting file with your preferred text editor
+less example/baddoch_clean_currentNe2_OUTPUT.txt
+```
+- Random mating. Individuals are assumed to come from a metapopulation composed of two subpopulations. Genetic distances between markers are obtained from the physical locations in the input file, using a constant rate of 1cM/Mb:
+
+```
+# Decompress the sample data (if it hasn't been decompressed previously)
+tar -xvf example/sample_data.tar.gz -C ./example
+
+# Run currentne2 on the sample data. This should take 5-10 min
+./currentne2 -r 1 -x example/girnock_clean.ped
+
+less example/girnock_clean_currentNe2_mix_OUTPUT.txt
 ```

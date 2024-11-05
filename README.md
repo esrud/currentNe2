@@ -25,7 +25,8 @@ sudo apt install make
 ```
 # Installation
 ## Pre-built version
-You can download the prebuilt version on the releases section of this repo.
+It is recommended that you compile the program, as it will most likely run faster. However we provide a prebuilt version in the releases section of this repo.
+
 ## Compiling
 Clone the github repo:
 ```

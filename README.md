@@ -130,7 +130,7 @@ EXAMPLES:
      (NOTE the MINUS SIGN before the number of full sibling 0.2)
 ```
 # Demo
-In this repo we provide some sample data for testing purposes. Here are two examples on how to test `currentne2` on this data:
+In this repo we provide some sample data for testing purposes, kindly provided by John Taggart (Institute of Aquaculture, University of Stirling). Here are two examples on how to test `currentne2` on this data:
 - Random mating. Genetic distances between markers are obtained from the physical locations in the input file, using a constant rate of 1cM/Mb:
 
 ```

@@ -1,7 +1,7 @@
 /*
  * Program: currentNe_v2.0
  *
- * Description: Neural Network for Ne Estimation
+ * Description: Contemporary Ne estimate
  *
  * Authors: Enrique Santiago, Carlos Köpke
  *
@@ -26,21 +26,15 @@
 
 #define MAXLOCI 2000000
 #define MAXIND 2000
-// #define MAXSIBPAIRS 50000
 #define MAXCROMO 1000
 #define MAXDIST 100000 // desde 0.01cM hasta 1000cM (10M)
 
-// void IntegralTot();
 void IntegralUNCROM();
-void MixIntegralUNCROM();
+void Mix05ylink();
+void CalculaOtros();
 void IntegralVARIOSCROM();
-// void IntegralCromUMBRALES();
 void Ecuacion05();
-void MixEcuacion05();
-// double Funcion_751_soloLD_mae_ADAM_5();
-// double Funcion_desv2logint_manip_log10Lsigmoid_mae_ADAM_4();
 double Funcion_desv2logsoloLD_manip_log10Lsigmoid_mae_ADAM_4();
-// double CalculaIntervalo_int();
 double CalculaIntervalo_soloLD();
 
 char indi[MAXIND][MAXLOCI] = {'\0'}; //** Genotipos dip 0:homo, 1:het, 2:homo
@@ -64,7 +58,7 @@ int containd, contaloc, contaloc2, contalocbase, contaseg, eneind, eneloc, enelo
 int enecrom, n_sample, n_SNPs, n_threads, ff, gg, ncrom_sample_int, imindist, imaxdist;
 double acuD2, acuW, acun, acupq, acuPp2, acur2, acuD205, acuW05, acur205, acun05;
 double acuD2link, acuWlink, acur2link, acunlink, effndatalink = 0;
-double n, d2s, d2s05, d2slink, d2_poblink, L, fs, fp, backfp, Ch, ele, Ne, Neant, genomesize;
+double n, d2s, d2s05, d2slink, d2_poblink, L, fs, fp, backfp, Ch, ele, Ne, Nemeta, NeT,Neant, genomesize;
 double Ne_integral_crom, Ne_integral_tot, Ne_integral_totcrom, Ne_05, Ne_link,  cM, Ncrom;
 double Ne_nohets, Ne_hets, effndata = 0, effndata05 = 0, obsndata = 0, propmiss, n_SNP_pairs, effeneind, effeneind_h;
 double acuParent = 0, acuHet = 0, Het_med = 0, Het_esp = 0, Het_var = 0, Het_DT, Het_sesg = 0;
@@ -84,11 +78,9 @@ double xDlink[MAXLOCI] = {0}, xWlink[MAXLOCI] = {0}, xr2link[MAXLOCI] = {0};
 bool flagconvergence = true;
 int contaelim = 0, enefuerzaajuste = 1;
 int nparhermanos = 0, npadrehijo = 0, counthethet = 0, counthethomo = 0, counthomohomo = 0, sumahethomo, countnopadre;
-// int hermanos[2][MAXSIBPAIRS];
-// int padrehijo[2][MAXIND];
 double ratiohets, rationopadre;
 double frecmed, nfrecmed;
-double d2p = 0, d2p05 = 0, d2pcmed=0;
+double d2p = 0, d2p05 = 0, d2plink, d2pcmed=0;
 double Fstmax, increFst;
 int fciclo;
 bool flagnoestimaks = false, haygenotipos = false;
@@ -106,6 +98,18 @@ bool flag_chr=false;
 bool flag_cM=false;
 bool flag_Mb=false;
 double Mtot=0, Mbtot=0;
+double kk1,kk2,kk4;
+double fp12;
+double sample_size, sample_size_h, samplex, sampley;
+double mind2dif,mindifd205,mindifd2link;
+double minm,minm05,minmlink,minmmejor,Nemejor;
+double dw2,dbdw,db2;
+double bw2mejor, db2mejor,dbdwmejor;
+int nsubs;
+double mejord2spred2, d2spred2;
+double mejord2spred1, d2spred1;
+bool flag_noconverge=false;
+
 
 // Variables privadas para paralelizacion:
 int *ppi;
@@ -130,6 +134,7 @@ struct AppParams
     double z;
     double ks;
     double miss;
+    bool flag_addsamplinggeneration;
     bool flagks;
     bool flagnok;
     bool quiet;
@@ -151,6 +156,7 @@ struct AppParams params =
         .z = 0,
         .ks = 0,
         .miss = 0.2,
+        .flag_addsamplinggeneration=true,
         .flagks = false,
         .flagnok = true,
         .quiet = false,
@@ -415,7 +421,7 @@ void readFile_ped(std::string fichinput1, std::string fichinput2, char (&populat
             }        
         }
 
-        if (flag_cM && params.s>1 && !flag_z){flag_z=true;params.z=5;}
+        if (flag_cM && params.s>1 && (!flag_z)){flag_z=true;params.z=5;}
 
         if (flag_chr)
         {
@@ -655,7 +661,7 @@ void readFile_tped(std::string fichinput1, char (&population)[MAXIND][MAXLOCI], 
         }        
     }
         
-    if (flag_cM && params.s>1 && !flag_z){flag_z=true;params.z=5;}
+    if (flag_cM && params.s>1){flag_z=true;params.z=5;}
 
 //    genomesize = Ncrom * params.Mchr;
     if (flag_chr)
@@ -953,7 +959,7 @@ void readFile_vcf(std::string fichinput1, char (&population)[MAXIND][MAXLOCI], P
     {
         flag_chr = true;
     }
-//    genomesize = Ncrom * params.Mchr;
+    //    genomesize = Ncrom * params.Mchr;
     if (flag_Mb){
         Mbtot = 0;
         for (int conta = 0; conta < ncromos; ++conta) {
@@ -970,7 +976,7 @@ void readFile_vcf(std::string fichinput1, char (&population)[MAXIND][MAXLOCI], P
         }
     }
 
-    if (flag_cM && params.s>1 && !flag_z){flag_z=true;params.z=5;}
+    if (flag_cM && params.s>1){flag_z=true;params.z=5;}
 
     if (flag_chr)
     {
@@ -998,27 +1004,28 @@ void readFile_vcf(std::string fichinput1, char (&population)[MAXIND][MAXLOCI], P
 void printHelp(char *appName)
 {
     fprintf(stderr,
-            "currentNe2 - Current Ne estimator (v 2.0 - March 2024)\n"
+            "currentNe2 - Current Ne estimator (v 2.0 - January 2025)\n"
             "Authors: Enrique Santiago - Carlos Köpke\n"
             "\n"
             "USAGE: %s [OPTIONS] <filename_with_extension> [Genome_size_in_Morgans]\n"
             "         where filename is the name of the data file in vcf, ped or tped\n"
             "             format. The filename must include the .vcf, .ped or .tped\n"
             "             extension, depending on the format.\n"
-            "         If Genome_size_in_Morgans (~chromosomes number) is specified, \n"
-            "         markers are assumed to be evenly distributed in the genome, and:\n"
+            "         If Genome_size_in_Morgans (=chromosome number) is specified, \n"
+            "         markers are assumed to be randomly distributed in the genome, and:\n"
             "             If chromosome assignments are available in the input \n"
-            "               file (or in a accompanying map file when using ped format),\n"
+            "               file (or in an accompanying map file when using ped format),\n"
             "               two Ne estimates are calculated: one based on all the\n"
-            "               SNP pairs and another based only on SNP pairs located in \n"
+            "               SNP pairs, and another based only on SNP pairs located in \n"
             "               different chromosomes. Chromosome sizes are assumed to be\n"
-            "               proportional to the number of markers.\n"
+            "               proportional to their number of markers.\n"
             "             If chromosome assignments are not available, chromosomes are \n"
-            "               assumed to be one Morgan long and markers are assumed to\n"
-            "               be evenly distributed between chromosomes. Only one estimate\n"
-            "               based on all SNP pairs is made.\n"
+            "               assumed to be ~1 Morgan long and markers are assumed to\n"
+            "               be evenly distributed within and between chromosomes. Only\n"
+            "               one Ne estimate based on all the SNP pairs is made.\n"
             "         If Genome_size_in_Morgans is not specified, then information on\n"
-            "         marker locations within chromosomes is obligatory, and:\n"
+            "         the true marker locations within chromosomes is obligatory, and\n"
+            "         consequently a more precise Ne estimate is performed:\n"
             "             If a constant recombination rate in cM/Mb is specified with\n"
             "               the option r, physical locations of markers in bp are \n"
             "               converted to genetic distances in cM and the Ne estimate\n"
@@ -1046,7 +1053,7 @@ void printHelp(char *appName)
             "   -r    Recombination rate to convert the physical locations in the\n"
             "         input file to genetic locations in cM.\n"
             "   -x    The sample consists of a random set of individuals from\n"
-            "         a metapopulation with two subpopulations of equal size.\n"
+            "         a metapopulation with subpopulations of equal size.\n"
             "         The k parameter cannot be used when this option is used.\n"
             "         This option is only applicable when the assigments of markers\n"
             "         to chromosomes are available. A single estimate of Ne is generated.\n"
@@ -1066,7 +1073,7 @@ void printHelp(char *appName)
             "     come from a metapopulation composed of two subpopulations. The length of\n"
             "     the genome is 30 Morgans and the marker assigments to chromosomes are \n"
             "     available in the input file:\n"
-            "         %s -x -s 100000 filename 30\n"
+            "         %s -x 2 -s 100000 filename 30\n"
             "   - Full siblings will be identified from the genotyping data. The genetic\n"
             "     locations (in cM) are available in the input file (only for ped/map and\n"
             "     tped formats):\n"
@@ -1112,7 +1119,7 @@ int main(int argc, char *argv[])
     std::string fichspecified = "";
     for (;;)
     {
-        switch (getopt(argc, argv, "hxs:k:r:z:m:o:t:qpv"))
+        switch (getopt(argc, argv, "hxs:k:r:z:m:o:t:Rqpv"))
         {
         case '?':
         case 'h':
@@ -1161,6 +1168,9 @@ int main(int argc, char *argv[])
             }      
             flag_z = true;
             continue;
+        case 'R':
+            params.flag_addsamplinggeneration=false;
+            continue;
         case 'm':
             params.miss = std::atof(optarg);
             continue;
@@ -1190,6 +1200,11 @@ int main(int argc, char *argv[])
     std::string fichinput1 = "";
     std::string fichinput2 = "";
     Ncrom = 0;
+    if (params.s>1){
+        kk1=float(params.s)/(float(params.s)-1);
+        kk2=kk1*kk1;
+        kk4=kk2*kk2;
+    }
     if (optind < argc)
     {
         fich = argv[optind];
@@ -1204,13 +1219,22 @@ int main(int argc, char *argv[])
                 return -1;
             }
             flag_Gs = true;
+            ncrom_sample_int = int(Ncrom);
+            if (ncrom_sample_int < 1)
+            {
+                ncrom_sample_int = 1;
+            }
+            params.Mchr=Ncrom/ncrom_sample_int;
             if (flag_r){
-                std::cout << "Option r is not compatible with the assignation of a genome size in the command line." << std::endl;
-                std::cout << "The genome size given in the command line will be ignored." << std::endl;
-                flag_Gs = false;
-                Ncrom =ncromos= 0;
+                std::cerr << "Option r is not compatible with the assignation of a genome size in the command line." << std::endl;                flag_Gs = false;
+                return -1;
             }
         }
+        // else
+        // {
+        //     std::cerr << "Genetic size in Morgans not specified" << std::endl;
+        //     return -1;
+        // }
     }
     if (flag_z){
         if (flag_Gs){
@@ -1224,7 +1248,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    genomesize = Ncrom * params.Mchr;
+    genomesize = Ncrom;
 
     if (fich == "")
     {
@@ -1541,10 +1565,10 @@ int main(int argc, char *argv[])
             mapdist[j]/=sumadist;
         }
     }
-    else{
+    else if (flag_Gs){
         sumadist=0;
         // maxdistance = float(Ncrom)/float(ncromos);
-        maxdistance = 1;
+        maxdistance = params.Mchr;
         maxdistanceindx=int(maxdistance/increMorgans);
         // j=int(((float(eneloc)/Ncrom)/2.0)/increMorgans);
         j=0;
@@ -1559,7 +1583,6 @@ int main(int argc, char *argv[])
             mapdist[j]/=sumadist;
         }
     }
-    //    std::cout << cmed << std::endl;
     if (maxdistance>10){
             std::cerr << "Chromosome sizes are limited to a maximum of 1000 cM. There is at least" << std::endl;
             std::cerr << "one chromosome larger than this limit." << std::endl;
@@ -1578,8 +1601,6 @@ int main(int argc, char *argv[])
         // En busca hermanos completos usando toda la información disponible
         // SIN ALEATORIZAR:
         a = 4 / (6 - frecmed * (1 - frecmed)) - 0.028;
-        // std::cout<<"HERMANOS METODO NUEVO:\n";
-        // std::cout<<frecmed<<" ,"<<a<<"\n";
         nparhermanos = 0;
         npadrehijo = 0;
         for (i = 0; i < popInfo.numIndividuals - 1; ++i)
@@ -1779,11 +1800,13 @@ int main(int argc, char *argv[])
             {
                 tacui/=(_containdX*2);
                 tacuj/=(_containdX*2);
+                // W = frec[*ppj] * frec[*ppi];
                 W = tacui*tacuj;
                 D = -2 * W + (2 * tacuHoHo + tacuHoHetHetHo + tacuHetHet / 2) / _containdX;
                 D *= D;
+                // W *= (1 - frec[*ppj]) * (1 - frec[*ppi]);
                 W *= (1 - tacui) * (1 - tacuj);
-                if (flag_chr)
+                 if (flag_chr)
                 {
                     if ((cromo[*ppi] != cromo[*ppj]))
                     {
@@ -1791,6 +1814,7 @@ int main(int argc, char *argv[])
                         x_containdX05[j3] += _containdX;
                         xD05[j3] += D;
                         xW05[j3] += W;
+                        // xr205[j3] += D / W; <<<<<XXXXXXX
                     }
                     else
                     {
@@ -1801,6 +1825,7 @@ int main(int argc, char *argv[])
                                 x_containdXlink[j3] += _containdX;
                                 xDlink[j3] += D;
                                 xWlink[j3] += W;
+                                // xr2link[j3] += D / W; <<<<<XXXXXXX
                             }
                         }
                         else{
@@ -1890,7 +1915,9 @@ int main(int argc, char *argv[])
     Wt=acuW/(1-2/(2*effeneind+1));
 
     std::stringstream salida0;
-    std::stringstream salida;
+    std::stringstream salida1;
+    std::stringstream salida2;
+    std::stringstream salida3;
     salida0 << "# (currentNe v 2.0)\n";
     salida0 << "# Command:";
     for (i = 0; i < argc; ++i)
@@ -1900,194 +1927,411 @@ int main(int argc, char *argv[])
     salida0 << "\n";
     salida0 << "# Running time:";
 
-    salida << "# INPUT PARAMETERS:\n";
-    salida << "# Number of chromosomes in the .map file:\n";
-    if (flag_chr)
-    {
-        salida << std::fixed << std::setprecision(2);
-        salida << ncromos << "\n";
-    }
-    else
-    {
-        salida << "No chromosome information:\n";
-    }
-    salida << "# Genome size in Morgans:\n";
-    salida << std::fixed << std::setprecision(2);
-    salida << genomesize << "\n";
-    salida << "# Total number of individuals in the input file:\n";
-    salida << std::fixed << std::setprecision(0);
-    salida << popInfo.numIndividuals << "\n";
-    salida << std::fixed << std::setprecision(2);
-    salida << "# Effective Number of individuals included in the analysis (excluding missing genotypes):\n";
-    salida << effeneind << "\n";
-    salida << std::fixed << std::setprecision(0);
-    salida << "# Number of SNPs in the input file:\n";
-    salida << popInfo.numLoci << "\n";
-    salida << "# Number of SNPs included in the analysis (only polymorphic and with less than 20% missing data):\n";
-    salida << eneloc << "\n";
-    salida << "# Number of SNP pairs included in the analysis:\n";
-    salida << n_SNP_pairs << "\n";
-    salida << std::fixed << std::setprecision(8);
-    salida << "# Proportion of missing data:\n";
-    salida << propmiss << "\n";
-    salida << std::fixed << std::setprecision(2);
-    salida << "# Number of full siblings that a random individual in the population has:\n";
-    if (!params.flagks && !params.flagnok){
-        salida << params.K << "\n";
+    salida1 << "# PREPROCESSING INFORMATION:\n";
+    if (params.s>1){
+        salida1 << "# A metapopulation model of several islands of equal size and symmetrical migration is assumed.\n";
     }
     else{
-        salida << "Not given\n";
+        salida1 << "# A single population model is assumed with the possibility of considering the existence of full-sibs.\n";
     }
-    salida << "# Number of full siblings that a random individuals in the sample has:\n";
-    if (params.flagks && !params.flagnok){
-        salida << params.ks << "\n#\n";
+    if (flag_Gs){
+        if (flag_chr){
+            salida1 << "# The total genome size is given in the command line. The assignments of markers to chromosomes \n";
+            salida1 << "#   are known. The locations within the chromosomes are unknown or ignored. Chromosome sizes are \n";
+            salida1 << "#   assumed to be proportional to the number of markers they have. The genetic distances between\n";
+            salida1 << "#   loci pairs are unknown. Distances are assumed to folow a triangular distribution.\n";
+            salida1 << "# Ne will be inferred using the distribution of recombination rates calculated from the distribution\n";
+            salida1 << "#   of distances, and the correlation of the alleles pooled across all pairs of loci.\n#\n";
+        }
+        else{
+            salida1 << "# The total genome size is given in the command line. The assignments of markers to chromosomes\n";
+            salida1 << "#   and their locations within chromosomes are unknown. All chromosomes are assumed to have the \n";
+            salida1 << "#   same ~1 Morgan genetic size. The genetic distances between loci pairs are unknown. Distances\n";
+            salida1 << "#   are assumed to folow a triangular distribution.\n";
+            salida1 << "# Ne will be inferred using the distribution of recombination rates calculated from the distribution\n";
+            salida1 << "#   of distances, and the correlation of the alleles pooled across all pairs of loci.\n#\n";
+        }
+    }
+    else{
+        if (flag_r){
+            salida1 << "# The marker locations in a physical map are known and the chromosome sizes and the\n";
+            salida1 << "#   total genome size will be calculated using those locations. The physical map will be\n";
+            salida1 << "#   converted into a genetic map using a constant recombination rate across the genome: \n";
+            salida1 << "#   distances in Morgans will be calculated using the physical distances (in Mb).\n";
+            salida1 << "# Ne will be inferred using the recombination rates between loci and the weighted cuadratic\n";
+        }
+        else{
+            salida1 << "# The marker locations in a genetic map are known and the chromosome sizes and \n";
+            salida1 << "#   the total genetic size will be calculated using those locations. The genetic \n";
+            salida1 << "#   distances (in Morgans) between loci pairs will be calculated directly using\n";
+            salida1 << "#   the locations in the genetic map.\n";
+            salida1 << "# Ne will be inferred using the recombination rates between loci and the weighted cuadratic\n";
+        }
+        if (params.s>1){
+            salida1 << "#   correlations of alleles of loci pairs at distances greater than 5 cM.\n#\n";
+        }
+        else{
+            salida1 << "#   correlations of alleles across all pairs of loci.\n#\n";
+        }
+    }
+
+    salida1 << "# INPUT PARAMETERS:\n";
+    salida1 << "# Number of chromosomes in the .map file:\n";
+    if (flag_chr)
+    {
+        salida1 << std::fixed << std::setprecision(2);
+        salida1 << ncromos << "\n";
     }
     else
     {
-        salida << "Not given\n#\n";
+        salida1 << "Not given.\n";
     }
-    salida << std::fixed << std::setprecision(8);
-    salida << "# OUTPUT PARAMETERS:\n";
-    salida << "# Observed d^2 of the entire sample (weighted correlation of loci pairs):\n";
-    salida << d2s << "\n";
+    salida1 << "# Genome size in Morgans:\n";
+    salida1 << std::fixed << std::setprecision(2);
+    salida1 << genomesize << "\n";
+    salida1 << "# Total number of individuals in the input file:\n";
+    salida1 << std::fixed << std::setprecision(0);
+    salida1 << popInfo.numIndividuals << "\n";
+    // salida1 << "# Number of individuals included in the analysis:\n";
+    // salida1 << eneind<<"\n";
+    salida1 << std::fixed << std::setprecision(2);
+    salida1 << "# Effective Number of individuals included in the analysis (excluding missing genotypes):\n";
+    salida1 << effeneind << "\n";
+    salida1 << std::fixed << std::setprecision(0);
+    salida1 << "# Number of SNPs in the input file:\n";
+    salida1 << popInfo.numLoci << "\n";
+    salida1 << "# Number of SNPs included in the analysis (only polymorphic and with less than 20% missing data):\n";
+    salida1 << eneloc << "\n";
+    salida1 << "# Number of SNP pairs included in the analysis:\n";
+    salida1 << n_SNP_pairs << "\n";
+    // salida1 << "# Expected amount of raw data (= individuals x SNPs pairs):\n";
+    // salida1 << obsndata << "\n";
+    // salida1 << "# Effective amount of raw data (may differ from the above one due to missing genotypes):\n";
+    // salida1 << effndata << "\n";
+    salida1 << std::fixed << std::setprecision(8);
+    salida1 << "# Proportion of missing data:\n";
+    salida1 << propmiss << "\n";
+    salida1 << std::fixed << std::setprecision(2);
+    salida1 << "# Number of full siblings that a random individual in the population has:\n";
+    if (!params.flagks && !params.flagnok){
+        salida1 << params.K << "\n";
+    }
+    else{
+        salida1 << "Not given\n";
+    }
+    salida1 << "# Number of full siblings that a random individuals in the sample has:\n";
+    if (params.flagks && !params.flagnok){
+        salida1 << params.ks << "\n#\n";
+    }
+    else
+    {
+        salida1 << "Not given\n#\n";
+    }
+    salida1 << std::fixed << std::setprecision(8);
+    salida1 << "# OUTPUT PARAMETERS:\n";
+    salida1 << "# Observed d^2 of the entire sample (weighted correlation of loci pairs):\n";
+    salida1 << d2s << "\n";
+    // salida1 << "# Observed r^2 of the entire sample (Pearson correlation of loci pairs):\n";
+    // salida1 << acur2 << "\n";  <<<<<XXXXXXX
     d2_pob = (d2s - (4 * double(effeneind) - 4) / ((2 * double(effeneind) - 1) * (2 * double(effeneind) - 1))) / ((1 - 1 / (2 * double(effeneind))) * 0.25); // APROXIMADO
     if (flag_chr)
     {
-        salida << "# Observed d^2 of the sample (only between different chromosomes):\n";
-        salida << d2s05 << "\n";
-        salida << "# Observed d^2 of the sample (within chromosomes):\n";
-        salida << d2slink << "\n";
+        salida1 << "# Observed d^2 of the sample (only between different chromosomes):\n";
+        salida1 << d2s05 << "\n";
+        // salida1 << "# Observed r^2 of the sample (only between different chromosomes):\n";
+        // salida1 << acur205 << "\n";
+        salida1 << "# Observed d^2 of the sample (within chromosomes):\n";
+        salida1 << d2slink << "\n";
+        // salida1 << "# Observed r^2 of the sample (within chromosomes)::\n";
+        // salida1 << acur2link << "\n";
     }
-    salida << "# Expected heterozygosity of the individuals in the sample under H-W eq.:\n";
-    salida << 2 * Het_esp << "\n";
-    salida << "# Observed heterozygosity of the individuals in the sample:\n";
-    salida << Het_med << "\n";
-    salida << "# Observed Fis value in the sample (excess of homozygotes):\n";
-    salida << fs << "\n";
-    salida << "# Estimate of the Fis value in the population (excess of homozygotes):\n";
-    salida << fp << "\n";
-
+    salida1 << "# Expected heterozygosity of the individuals in the sample under H-W eq.:\n";
+    salida1 << 2 * Het_esp << "\n";
+    salida1 << "# Observed heterozygosity of the individuals in the sample:\n";
+    salida1 << Het_med << "\n";
+    salida1 << "# Observed F value in the sample (excess of homozygotes):\n";
+    salida1 << fs << "\n";
+    // salida1 << "# Estimate of the Fis value in the population (excess of homozygotes):\n";
+    // salida1 << fp << "\n";
+	fp12 = (1 + fp) * (1 + fp);
     params.progress.SetCurrentTask(1, "Analyzing input data");
+
+    sample_size = effeneind;
+    sample_size_h = sample_size * 2;
+    samplex = (sample_size_h - 2.0) * (sample_size_h - 2.0) * (sample_size_h - 2.0);
+    samplex += 8.0 / 5.0 * (sample_size_h - 2.0) * (sample_size_h - 2.0);
+    samplex += 4 * (sample_size_h - 2.0);
+    samplex /= ((sample_size_h - 1.0) * (sample_size_h - 1.0) * (sample_size_h - 1.0) + (sample_size_h - 1.0) * (sample_size_h - 1.0));
+    sampley = (2.0 * sample_size_h - 4.0) / ((sample_size_h - 1.0) * (sample_size_h - 1.0));
 
     if (params.s>1)
     { // Aquí va la población subdividida
-
-        if ((flag_chr) && (d2slink>d2s05))
-        {
-            // first, search for the maximum possible value of Fst
-            double maxFst=1;
-            double minFst=0;
-            double difmax=0;
-            double difmin=0;
-
-            double fp12 = (1 + fp) * (1 + fp);
-            double sample_size_h = effeneind * 2;
-            double samplex = (sample_size_h - 2.0) * (sample_size_h - 2.0) * (sample_size_h - 2.0);
-            samplex += 8.0 / 5.0 * (sample_size_h - 2.0) * (sample_size_h - 2.0);
-            samplex += 4 * (sample_size_h - 2.0);
-            samplex /= ((sample_size_h - 1.0) * (sample_size_h - 1.0) * (sample_size_h - 1.0) + (sample_size_h - 1.0) * (sample_size_h - 1.0));
-            double sampley = (2.0 * sample_size_h - 4.0) / ((sample_size_h - 1.0) * (sample_size_h - 1.0));
-            double d2= (d2s05 - sampley * fp12) / samplex;
-            if (d2>0){
-                Fst = std::sqrt(d2);
-                Ne05=Nelink=10E9;
-                double Ne05ant=10E9;
-                double Nelinkant=10E9;
-                increFst = Fst;
-                for (i=0;i<5;++i){
-                    increFst /= 10;
-                    while ((Ne05-Nelink)<=0){
-                        if (Fst<increFst){break;}
-                        Ne05ant=Ne05;
-                        Nelinkant=Nelink;
-                        Fst-=increFst;
-                        MixEcuacion05();
-                        Ne05=Ne;
-                        MixIntegralUNCROM();
-                        Nelink=Ne;
-                        if ((Ne05-Nelink)>0){
+        if ((flag_chr) && (d2slink>d2s05)){
+            double maxFst;
+            double minFst;
+            double d2b05= (d2s05 - sampley * fp12) / samplex / 4; // el 4 es por ser unphased
+            int repe;
+            if (d2b05>0){
+                for (repe=0;repe<3;++repe){
+                    int CIEN=100;
+                    minFst=0;
+                    maxFst=std::sqrt(d2b05*(params.s-1));
+                    if (maxFst>0.9){maxFst=0.9;}
+                    increFst=(maxFst-minFst)/CIEN;
+                    double Fstmejor=999999999,dif,difmejor=999999999;
+                    for (int ii=0;ii<2;++ii){
+                        Fst=minFst;
+                        while (Fst<maxFst){
                             Fst+=increFst;
-                            Ne05=Ne05ant;
-                            Nelink=Nelinkant;
+                            Mix05ylink();
+                            if((Ne<999999999) && (mind2dif<difmejor) && (minm<0.45) && (minm>0)){
+                                difmejor=mind2dif;
+                                Nemejor=Ne;
+                                minmmejor=minm;
+                                Fstmejor=Fst;
+                                // bw2mejor=dw2;
+                                // db2mejor=db2;
+                                // dbdwmejor=dbdw;
+                                // mejord2spred1=d2spred1;
+                                // mejord2spred2=d2spred2;
+                        }
+                        }
+                        if (Fstmejor<1){
+                            minFst=Fstmejor-increFst;
+                            maxFst=Fstmejor+increFst;
+                            increFst=(maxFst-minFst)/CIEN;
+                        }
+                        else{
                             break;
                         }
                     }
+                    if (Fstmejor<1){ // Si Fst valido
+                        Fst=Fstmejor;
+                        Ne=(Nemejor);
+                        NeT=Ne*params.s;
+                        // FORMULA ABREVIADA:
+                        m= (1-Fst)/(4*Ne*Fst*pow((float(params.s)/float(params.s-1)),2));
+                        // FORMULA COMPLETA:
+                        // m = (1-pow(1-1/(2*params.s/(params.s-1)*Ne)*(1-Fst)/Fst,0.5))/(params.s/(params.s-1));
+                        salida2 << "#\n";
+                        salida2 << "# Fit (probability of IBD within individuals relatively to the entire metapopulation):\n";
+                        salida2 << std::fixed << std::setprecision(6);
+                        salida2 << fp << "\n";
+                        salida2 << "# Fst (subpopulation differentiation):\n";
+                        salida2 << Fst << "\n";
+                        salida2 << "# Fis (probability of IBD within individuals in each subpopulation):\n";
+                        salida2 << 1-(1-fp)/(1-Fst) << "\n";
+                        salida2 << "#\n# Migration rate:\n";
+                        salida2 << std::fixed << std::setprecision(6);
+                        salida2 << m << "\n";
+                        salida2 << "#\n# Number of subpopulations of equal size (forced to a minimum of two by the option '-x'):\n";
+                        salida2 << std::fixed << std::setprecision(0);
+                        salida2 << params.s << "\n";
+                        salida2 << "#\n# N_T of the metapopulation (sum of the Ne values of all subpopulations):\n";
+                        salida2 << std::fixed << std::setprecision(2);
+                        salida2 << NeT << "\n";
+                        if (flag_Gs){
+                            salida2 << "#\n# (Note: These estimates of Ne, migration rate and F statistics should be \n";
+                            salida2 << "# considered a rough approximation because the distances between pairs of \n";
+                            salida2 << "# sites are ignored or are unknown. No CIs are calculated). \n";
+                        }
+                        else{
+                            ncrom_sample = Ncrom;
+                            log10_ncrom_sample = log10(genomesize);
+                            if (log10_ncrom_sample > log10(60)){
+                                log10_ncrom_sample = log10(60);
+                            } // 60 cromosomas es c=0.5
+                            f_pob = fp;
+                            log10_n_sample = log10(effeneind);
+                            log10_nSNPs_solicitado = log10(eneloc);
+                            Ne_integral_totcrom = Ne * params.s ;
+                            log10_Ne_obs = log10(Ne_integral_totcrom);
+                            for (i = 0; i < 5; ++i)
+                            {
+                                lim = -nDT[i];
+                                if (i != 2)
+                                {
+                                    rangos_int[i] = CalculaIntervalo_soloLD();
+                                }
+                            }
+                            rangos_int[2] = log10_Ne_obs;
+                            for (i = 0; i < 5; ++i)
+                            {
+                                rangos_int[i] = pow(10, rangos_int[i]);
+                            }
+                            salida2 << "# Lower 50% limit of the N_T estimate:\n";
+                            salida2 << rangos_int[1] << "\n";
+                            salida2 << "# Upper 50% limit of the N_T estimate:\n";
+                            salida2 << rangos_int[3] << "\n";
+                            salida2 << "# Lower 90% limit of the N_T estimate:\n";
+                            salida2 << rangos_int[0] << "\n";
+                            salida2 << "# Upper 90% limit of the N_T estimate:\n";
+                            salida2 << rangos_int[4] << "\n";
+                        }
+                        salida2 << "#\n# Ne of the entire metapopulation (effective metapopulation size of drift and inbreeding):\n";
+                        salida2 << std::fixed << std::setprecision(2);
+                        salida2 << NeT/(1-Fst) << "\n";
+                        if (!flag_Gs){
+                            salida2 << "# Lower 50% limit of the Ne estimate:\n";
+                            salida2 << rangos_int[1]/(1-Fst) << "\n";
+                            salida2 << "# Upper 50% limit of the Ne estimate:\n";
+                            salida2 << rangos_int[3]/(1-Fst) << "\n";
+                            salida2 << "# Lower 90% limit of the Ne estimate:\n";
+                            salida2 << rangos_int[0]/(1-Fst) << "\n";
+                            salida2 << "# Upper 90% limit of the Ne estimate:\n";
+                            salida2 << rangos_int[4]/(1-Fst) << "\n";
+                        }
+                        double paramssanterior=params.s;
+                        if (repe<2){ // Nueva busqueda si es la primera o segunda pasada
+                            CIEN=100;
+                            d2p05=(d2s05-sampley*fp12)/samplex;
+                            d2plink=(d2slink-sampley*fp12)/samplex;
+                            c = 0.5;
+                            c2 = c * c;
+                            c12 = (1 - c) * (1 - c);
+                            double Fis,lowestFis=999999999;
+                            int additionalcount=101;
+                            bool nopase=true;
+                            for (nsubs=2;nsubs<101;++nsubs){
+                                Ne=NeT/nsubs;
+                                if (Ne>5){
+                                    Fstmejor=999999999;
+                                    double mind2difant=999999999;
+                                    minFst=0;
+                                    maxFst=std::sqrt(d2b05*(nsubs-1));
+                                    if (maxFst>0.9){maxFst=0.9;}
+                                    increFst=(maxFst-minFst)/CIEN;
+                                    for (int ii=0;ii<2;++ii){
+                                        Fst=minFst;
+                                        while (Fst<maxFst){
+                                            Fst+=increFst;
+                                            CalculaOtros();
+                                            if (mind2dif<1){
+                                                if (mind2dif<mind2difant){
+                                                    minmmejor=m;
+                                                    mind2difant=mind2dif;
+                                                    Fstmejor=Fst;
+                                                    // mejord2spred2=d2spred2;
+                                                    // mejord2spred1=d2spred1;
+                                                }
+                                            }
+                                        }
+                                        if (Fstmejor<1){
+                                            minFst=Fstmejor-increFst;
+                                            maxFst=Fstmejor+increFst;
+                                            increFst=(maxFst-minFst)/CIEN;
+                                        }
+                                        else{
+                                            break;
+                                        }
+                                    }
+                                    Fis=1-(1-fp)/(1-Fstmejor);
+                                    if ((Fstmejor<1) && (Fstmejor>0) && (minmmejor>0) && (minmmejor<0.5)){
+                                        if (lowestFis<std::abs(Fis)){
+                                            if (nopase){
+                                                nopase=false;
+                                                params.s=nsubs-1;
+                                                break;
+                                            }
+                                        }
+                                        else{
+                                            lowestFis=std::abs(Fis);
+                                        }
+                                    }
+                                }
+                            }
+                            if(paramssanterior==params.s){ // Stop si la salida de la nueva busqueda no cambia.
+                                break;
+                            }
+                        }
+                    }
+                    else{
+                        salida2 << "# There is no convergence to a solution within the range of Fst values from 0 to 1.\n";
+                        salida2 << "#\n";
+                        flag_noconverge=true;
+                    }
+                    if (repe==0){ // Si no converge a la primera, sale
+                        if (flag_noconverge){break;}
+                    }
+                    if (repe<2){
+                        if (!flag_noconverge){ // guarda salida en el buffer salida3 si converge
+                            salida3 << salida2.rdbuf();
+                            salida2.str("");
+                        }
+                    }
+                    if ((params.s==2) || (flag_noconverge)){ // recupera buffer anterior y sale
+                        salida2.str("");
+                        salida2 << salida3.rdbuf();
+                        salida3.str("");
+                        break;
+                    }
                 }
-                Fst-=increFst;
-                MixEcuacion05();
-                Ne05=Ne;
-                MixIntegralUNCROM();
-                Nelink=Ne;
-                difmax=Ne05-Nelink;
-                maxFst=Fst;
-                // then, search for the minimum possible value of Fst
-                Fst = 0;
-                minFst=Fst;
-                MixEcuacion05();
-                Ne05=Ne;
-                MixIntegralUNCROM();
-                Nelink=Ne;
-                difmin=Ne05-Nelink;
             }
             else{
-                difmin=difmax=1;
+                salida2 << "#\n# LD between sites in different chromosomas is too small (no signs of population subdivision).\n";
+                salida2 << "#\n";  
             }
-            if ((difmin*difmax)<0){
-                // Next, search for the confluence of the two estimates of Ne
-                int signo=-1;
-                increFst =(maxFst-minFst)/10;
-                Fst=maxFst;
-                MixEcuacion05();
-                Ne05=Ne;
-                MixIntegralUNCROM();
-                Nelink=Ne;
-                double dif=Ne05-Nelink;
-                int countchanges=0;
-                while (countchanges<10){
-                    // Check for valid Fst
-                    while ((dif*signo<0)){
-                        Fst +=increFst*signo; // reset the previous value
-                        if (Fst>maxFst){Fst=maxFst;}
-                        if (Fst<minFst){Fst=minFst;}
-                        MixEcuacion05();
-                        Ne05=Ne;
-                        MixIntegralUNCROM();
-                        Nelink=Ne;
-                        dif=Ne05-Nelink;
+        }
+        else{
+            if (!flag_chr){
+                salida2 << "# Ne cannot be estimated because the markers are not assigned to chromosomes.\n";
+                salida2 << "#\n";
+            }
+            if (d2slink<d2s05){
+                salida2 << "# Ne cannot be estimated because the LD is smaller for linked than for unlinked markers.\n";
+                salida2 << "#\n";
+            }
+        }
+        salida2 << "#\n# (end of output)\n";
+    }
+    else
+    { // y aquí la población panmíctica
+        if (flag_chr || flag_Gs){
+            ncrom_sample = Ncrom;
+            log10_ncrom_sample = log10(genomesize);
+            if (log10_ncrom_sample > log10(60))
+            {
+                log10_ncrom_sample = log10(60);
+            } // 60 cromosomas es c=0.5
+            f_pob = fp;
+            log10_n_sample = log10(effeneind);
+            log10_nSNPs_solicitado = log10(eneloc);
+
+            backfp = fp;
+            for (fciclo = 0; fciclo < 2; ++fciclo)
+            { // The second try assumes fp=0
+                Neant = 0;
+                if (params.flagks || params.flagnok)
+                {
+                    params.K = 0;
+                    for (i = 0; i < 30; ++i)
+                    {
+                        IntegralVARIOSCROM();
+                        if (params.ks == 0)
+                        {
+                            break;
+                        }
+                        params.K = Ne / (eneind - 1) * params.ks;
+                        if ((std::abs(Ne - Neant) < 0.1) || (std::abs(Ne - Neant) < (Ne / 10000)))
+                        {
+                            break;
+                        }
+                        Neant = Ne;
                     }
-                    signo=-signo;
-                    ++countchanges;
-                    increFst/=10;
                 }
-                salida << "#\n# Partition of the F-statistics:\n";
-                salida << "# Fit (probability of IBD within individuals relatively to the entire metapopulation):\n";
-                salida << std::fixed << std::setprecision(6);
-                salida << fp << "\n";
-                salida << "# Fst (subpopulation differentiation):\n";
-                salida << Fst << "\n";
-                salida << "# Fis (probability of IBD within individuals in each subpopulation):\n";
-                salida << 1-(1-fp)/(1-Fst) << "\n";
-                salida << "#\n# Migration rate between subpopulations of equal size:\n";
-                salida << std::fixed << std::setprecision(6);
-                salida << m << "\n";
-                salida << "#\n# Ne of the entire metapopulation:\n";
-                salida << std::fixed << std::setprecision(2);
-                salida << Nelink * params.s << "\n";
-                ncrom_sample_int = int(Ncrom);
-                if (ncrom_sample_int < 1)
+                else
                 {
-                    ncrom_sample_int = 1;
+                    IntegralVARIOSCROM();
                 }
-                ncrom_sample = Ncrom;
-                log10_ncrom_sample = log10(genomesize);
-                if (log10_ncrom_sample > log10(60))
+                if (Ne < 100000000)
                 {
-                    log10_ncrom_sample = log10(60);
-                } // 60 cromosomas es c=0.5
-                f_pob = fp;
-                log10_n_sample = log10(effeneind);
-                log10_nSNPs_solicitado = log10(eneloc);
-                Ne_integral_totcrom = Nelink * params.s ;
+                    break;
+                } // No more than 10^9 Ne
+                fp = 0;
+            }
+            fp = backfp;
+            if (Ne < 100000000){
+                Ne_integral_totcrom = Ne;
                 log10_Ne_obs = log10(Ne_integral_totcrom);
                 for (i = 0; i < 5; ++i)
                 {
@@ -2102,416 +2346,175 @@ int main(int argc, char *argv[])
                 {
                     rangos_int[i] = pow(10, rangos_int[i]);
                 }
-                salida << "# Lower limit of 50% CI:\n";
-                salida << rangos_int[1] << "\n";
-                salida << "# Upper limit of 50% CI:\n";
-                salida << rangos_int[3] << "\n";
-                salida << "# Lower limit of 90% CI:\n";
-                salida << rangos_int[0] << "\n";
-                salida << "# Upper limit of 90% CI:\n";
-                salida << rangos_int[4] << "\n";
-                salida << "#\n";
-                salida << "# Partition of the expected LD (weighted d² correlation coefficient) of a metapopulation\n";
-                salida << std::fixed << std::setprecision(0);
-                salida << "# of "<< 2*Nelink<<" individuals divided into two subpopulations of equal size and recirocal\n";
-                salida << std::fixed << std::setprecision(8);
-                salida << "# migration rate of "<< m<<" :\n";
-                salida << "# Rec_rate\td²_wi_subpops\td²_bw_subpops\t2_x_d²_wi_x_bw\td²_entire_metapop:\n";
-                // m12=(1-m)*(1-m);
-                // m22=(1-2*m)*(1-2*m);
-                ms=params.s*m/(params.s-1);
-                m12=(1-ms)*(1-ms);
-                c=1;
-                double increc=0.1;
-                for (i=0;i<4;++i){
-                    for (j=1;j<10;++j){
-                        c-=increc;
-                        if (c<0.51){
 
-                            c2 = c * c;
-                            c12 = (1 - c) * (1 - c);
-
-                            // AA=(1-m12)*m12*(1-1/(2*Nelink));
-                            // BB=2*(1-m12)*(1-2.2/(2*params.s*Nelink))*(1-c);
-                            // CC=1-(1-2.2/(2*params.s*Nelink))*c12;
-                            // DD=1-m12*(1-1/(2*Nelink))*(1-c);
-                            // EE=(1-m12)*(1-m12)*(1-c)*(1-2.2/(2*params.s*Nelink));
-
-                            // Db2=Wt*Fst*Fst;
-                            // DbDw=Db2*(AA/DD+(EE/CC+(AA*BB)/(CC*DD))/(2*params.s*Nelink*DD))+Wt*(1-Fst)*(1-Fst)/(4*params.s*params.s*Nelink*Nelink*CC*DD);
-                            // Dw2=Db2*(EE/CC+(AA*BB)/(CC*DD))+Wt*(1-Fst)*(1-Fst)*(1+c2)/(2*params.s*Nelink*CC);
-
-                            Db2=(Wt)*Fst*Fst;
-                            Dw2=(Wt)*(1-Fst)*(1-Fst)*(1+c2)/(4*Nelink*(1-c12)+2.2*c12);
-                            DbDw=(4*(Wt)*Fst*Fst*m12*(m)+(Dw2)/(4*Nelink))/(1-m12*(1-c)*(1-1/2/Nelink));
-
-                            salida << std::fixed << std::setprecision(4);
-                            salida << c<<"\t";
-                            salida << std::fixed << std::setprecision(8);
-                            salida <<Dw2/Wt<<"\t"<<Db2/Wt<<"\t"<<2*DbDw/Wt<<"\t"<<(Dw2+Db2+2*DbDw)/Wt<<"\n";
-
-                        }
-                    }
-                    increc/=10;
-                }
-                salida << "# Multiply by the product of genic variances Wt to obtain squared covariances. Wt:\n";
-                salida << Wt<<"\n#\n";            
-            }
-            else{
-                if (difmin+difmax == 2){
-                    salida << "#\n# The Fst value is too low to be estimated, indicating no signs of population subdivision.\n";
-                    // salida << Ne05<<"  "<<Nelink<<"\n";
-                    salida << "#\n";  
-                }
-                else{
-                    salida << "#\n# Ne estimate does not converge to a solution within the range of Fst from 0 to 1.\n";
-                    // salida << Ne05<<"  "<<Nelink<<"\n";
-                    salida << "#\n";  
-                }
-            }
-        }
-        else{
-            if (!flag_chr){
-                salida << "# Ne cannot be estimated because the markers are not assigned to chromosomes.\n";
-                salida << "#\n";
-            }
-            if (d2slink<d2s05){
-                salida << "# Ne cannot be estimated because the LD is smaller for linked than for unlinked markers.\n";
-                salida << "#\n";
-            }
-        }
-    }
-    else
-    { // y aquí la población panmíctica
-    
-        ncrom_sample_int = int(Ncrom);
-        if (ncrom_sample_int < 1)
-        {
-            ncrom_sample_int = 1;
-        }
-        ncrom_sample = Ncrom;
-        log10_ncrom_sample = log10(genomesize);
-        if (log10_ncrom_sample > log10(60))
-        {
-            log10_ncrom_sample = log10(60);
-        } // 60 cromosomas es c=0.5
-        f_pob = fp;
-        log10_n_sample = log10(effeneind);
-        log10_nSNPs_solicitado = log10(eneloc);
-
-        backfp = fp;
-        for (fciclo = 0; fciclo < 2; ++fciclo)
-        { // The second try assumes fp=0
-            Neant = 0;
-            if (params.flagks || params.flagnok)
-            {
-                params.K = 0;
-                for (i = 0; i < 30; ++i)
+                salida1 << "#\n"
+                    << "# Ne estimation by integration over the whole genome.\n";
+                salida1 << std::fixed << std::setprecision(0);
+                salida1 << "# Based on " << acun << " pairs of SNPs.\n";
+                salida1 << std::fixed << std::setprecision(2);
+                salida1 << "# Ne point estimate:\n";
+                salida1 << rangos_int[2] << "\n";
+                salida1 << "# Lower limit of 50% CI:\n";
+                salida1 << rangos_int[1] << "\n";
+                salida1 << "# Upper bound of 50% CI:\n";
+                salida1 << rangos_int[3] << "\n";
+                salida1 << "# Lower limit of 90% CI:\n";
+                salida1 << rangos_int[0] << "\n";
+                salida1 << "# Upper limit of 90% CI:\n";
+                salida1 << rangos_int[4] << "\n";
+                // }
+                salida1 << "# Estimated Number of full siblings that a random individuals has in the population:\n";
+                if (params.flagks || params.flagnok)
                 {
-                    IntegralVARIOSCROM();
-                    if (params.ks == 0)
+                    if (params.flagnok && flagnoestimaks)
                     {
-                        break;
+                        salida1 << "Not estimated because F value is too large\n#\n";
                     }
-                    params.K = Ne / (eneind - 1) * params.ks;
-                    if ((std::abs(Ne - Neant) < 0.1) || (std::abs(Ne - Neant) < (Ne / 10000)))
+                    else
                     {
-                        break;
+                        salida1 << params.K << "\n#\n";
                     }
-                    Neant = Ne;
-                }
-            }
-            else
-            {
-                IntegralVARIOSCROM();
-            }
-            if (Ne < 100000000)
-            {
-                break;
-            } // No more than 10^9 Ne
-            fp = 0;
-        }
-        fp = backfp;
-        if (Ne < 100000000){
-            Ne_integral_totcrom = Ne;
-            log10_Ne_obs = log10(Ne_integral_totcrom);
-            for (i = 0; i < 5; ++i)
-            {
-                lim = -nDT[i];
-                if (i != 2)
-                {
-                    rangos_int[i] = CalculaIntervalo_soloLD();
-                }
-            }
-            rangos_int[2] = log10_Ne_obs;
-            for (i = 0; i < 5; ++i)
-            {
-                rangos_int[i] = pow(10, rangos_int[i]);
-            }
-
-            salida << "#\n"
-                << "# Ne estimation by integration over the whole genome (no genetic map available).\n";
-            salida << std::fixed << std::setprecision(0);
-            salida << "# Based on " << acun << " pairs of SNPs.\n";
-            salida << std::fixed << std::setprecision(2);
-            salida << "# Ne point estimate:\n";
-            salida << rangos_int[2] << "\n";
-            salida << "# Lower limit of 50% CI:\n";
-            salida << rangos_int[1] << "\n";
-            salida << "# Upper bound of 50% CI:\n";
-            salida << rangos_int[3] << "\n";
-            salida << "# Lower limit of 90% CI:\n";
-            salida << rangos_int[0] << "\n";
-            salida << "# Upper limit of 90% CI:\n";
-            salida << rangos_int[4] << "\n";
-            // }
-            salida << "# Estimated Number of full siblings that a random individuals has in the population:\n";
-            if (params.flagks || params.flagnok)
-            {
-                if (params.flagnok && flagnoestimaks)
-                {
-                    salida << "Not estimated because F value is too large\n#\n";
                 }
                 else
                 {
-                    salida << params.K << "\n#\n";
+                    salida1 << "Not calculated\n#\n";
                 }
             }
-            else
-            {
-                salida << "Not calculated\n#\n";
-            }
-        }
-        else{
-            salida << "\nThe solution based on LD between all loci pairs does not converge. \n";
-            if ((params.flagks) || params.flagnok || (params.K > 0))
-            {
-                salida << "\nThe LD data and the number of siblings are incongruent to each other. \n#\n";
-            }
-        }
-
-        f_pob = fp;
-        if (flag_chr)
-        {
-            effeneind_h = effeneind * 2;
-            double samx = (effeneind_h - 2.0) * (effeneind_h - 2.0) * (effeneind_h - 2.0);
-            samx += 8.0 / 5.0 * (effeneind_h - 2.0) * (effeneind_h - 2.0);
-            samx += 4 * (effeneind_h - 2.0);
-            samx /= ((effeneind_h - 1.0) * (effeneind_h - 1.0) * (effeneind_h - 1.0) + (effeneind_h - 1.0) * (effeneind_h - 1.0));
-            double samy = (2.0 * effeneind_h - 4.0) / ((effeneind_h - 1.0) * (effeneind_h - 1.0));
-            log10_ncrom_sample = log10(60); // 60 cromosomas es c=0.5
-            log10_n_sample = log10(effeneind);
-            log10_nSNPs_solicitado = log10(eneloc);
-            backfp = fp;
-            d2_pob05 = (d2s05 - samy) / (samx * 0.25); // APROXIMADO
-            for (fciclo = 0; fciclo < 2; ++fciclo)
-            { // Two tries in case d2 negative
-                Neant = 0;
-                if (params.flagks || params.flagnok)
+            else{
+                salida1 << "\nThe solution based on LD between all loci pairs does not converge. \n";
+                if ((params.flagks) || params.flagnok || (params.K > 0))
                 {
-                    params.K = 0;
-                    for (i = 0; i < 30; ++i)
+                    salida1 << "\nThe LD data and the number of siblings are incongruent to each other. \n#\n";
+                }
+            }
+
+            f_pob = fp;
+            if (flag_chr){
+                effeneind_h = effeneind * 2;
+                double samx = (effeneind_h - 2.0) * (effeneind_h - 2.0) * (effeneind_h - 2.0);
+                samx += 8.0 / 5.0 * (effeneind_h - 2.0) * (effeneind_h - 2.0);
+                samx += 4 * (effeneind_h - 2.0);
+                samx /= ((effeneind_h - 1.0) * (effeneind_h - 1.0) * (effeneind_h - 1.0) + (effeneind_h - 1.0) * (effeneind_h - 1.0));
+                double samy = (2.0 * effeneind_h - 4.0) / ((effeneind_h - 1.0) * (effeneind_h - 1.0));
+                log10_ncrom_sample = log10(60); // 60 cromosomas es c=0.5
+                log10_n_sample = log10(effeneind);
+                log10_nSNPs_solicitado = log10(eneloc);
+                backfp = fp;
+                d2_pob05 = (d2s05 - samy) / (samx * 0.25); // APROXIMADO
+                for (fciclo = 0; fciclo < 2; ++fciclo)
+                { // Two tries in case d2 negative
+                    Neant = 0;
+                    if (params.flagks || params.flagnok)
+                    {
+                        params.K = 0;
+                        for (i = 0; i < 30; ++i)
+                        {
+                            Ecuacion05();
+                            if (params.ks == 0)
+                            {
+                                break;
+                            }
+                            params.K = Ne / (eneind - 1) * params.ks;
+                            if ((std::abs(Ne - Neant) < 0.1) || (std::abs(Ne - Neant) < (Ne / 10000)))
+                            {
+                                break;
+                            }
+                            Neant = Ne;
+                        }
+                    }
+                    else
                     {
                         Ecuacion05();
-                        if (params.ks == 0)
-                        {
-                            break;
-                        }
-                        params.K = Ne / (eneind - 1) * params.ks;
-                        if ((std::abs(Ne - Neant) < 0.1) || (std::abs(Ne - Neant) < (Ne / 10000)))
-                        {
-                            break;
-                        }
-                        Neant = Ne;
                     }
-                }
-                else
-                {
-                    Ecuacion05();
-                }
-                if (Ne < 100000000)
-                {
-                    break;
-                }
-                fp = 0;
-            }
-            fp = backfp;
-            Ne_05 = Ne;
-            if (Ne < 100000000){
-                log10_Ne_obs = log10(Ne_05);
-                for (i = 0; i < 5; ++i)
-                {
-                    lim = -nDT[i];
-                    if (i != 2)
+                    if (Ne < 100000000)
                     {
-                        rangos_05[i] = CalculaIntervalo_soloLD();
+                        break;
                     }
+                    fp = 0;
                 }
-                rangos_05[2] = log10_Ne_obs;
-                for (i = 0; i < 5; ++i)
-                {
-                    rangos_05[i] = pow(10, rangos_05[i]);
-                }
+                fp = backfp;
+                Ne_05 = Ne;
+                if (Ne < 100000000){
+                    log10_Ne_obs = log10(Ne_05);
+                    for (i = 0; i < 5; ++i)
+                    {
+                        lim = -nDT[i];
+                        if (i != 2)
+                        {
+                            rangos_05[i] = CalculaIntervalo_soloLD();
+                        }
+                    }
+                    rangos_05[2] = log10_Ne_obs;
+                    for (i = 0; i < 5; ++i)
+                    {
+                        rangos_05[i] = pow(10, rangos_05[i]);
+                    }
 
-                salida << "#\n"
-                        << "# Ne estimation based only on LD between chromosomes:\n";
-                // if (rangos_05[2]>100000000){
-                //     salida<<"#  It is not possible to calculate Ne: the estimate of d2 in the population is negative!! ("<<d2p05<<")\n";
-                // }
-                // else{
-                salida << std::fixed << std::setprecision(0);
-                salida << "# Based on " << acun05 << " pairs of SNPs between chromosomes.\n";
-                salida << std::fixed << std::setprecision(2);
-                salida << "# Ne point estimate:\n";
-                salida << rangos_05[2] << "\n";
-                salida << "# Lower limit of 50% CI:\n";
-                salida << rangos_05[1] << "\n";
-                salida << "# Upper limit of 50% CI:\n";
-                salida << rangos_05[3] << "\n";
-                salida << "# Lower limit of 90% CI:\n";
-                salida << rangos_05[0] << "\n";
-                salida << "# Upper limit of 90% CI:\n";
-                salida << rangos_05[4] << "\n";
-                // }
-                salida << "# Estimated Number of full siblings that a random individuals has in the population (c=0.5):\n";
-                if (params.flagks || params.flagnok)
-                {
-                    if (params.flagnok && flagnoestimaks)
+                    salida1 << "#\n"
+                            << "# Ne estimation based only on LD between chromosomes:\n";
+                    // if (rangos_05[2]>100000000){
+                    //     salida1<<"#  It is not possible to calculate Ne: the estimate of d2 in the population is negative!! ("<<d2p05<<")\n";
+                    // }
+                    // else{
+                    salida1 << std::fixed << std::setprecision(0);
+                    salida1 << "# Based on " << acun05 << " pairs of SNPs between chromosomes.\n";
+                    salida1 << std::fixed << std::setprecision(2);
+                    salida1 << "# Ne point estimate:\n";
+                    salida1 << rangos_05[2] << "\n";
+                    salida1 << "# Lower limit of 50% CI:\n";
+                    salida1 << rangos_05[1] << "\n";
+                    salida1 << "# Upper limit of 50% CI:\n";
+                    salida1 << rangos_05[3] << "\n";
+                    salida1 << "# Lower limit of 90% CI:\n";
+                    salida1 << rangos_05[0] << "\n";
+                    salida1 << "# Upper limit of 90% CI:\n";
+                    salida1 << rangos_05[4] << "\n";
+                    // }
+                    salida1 << "# Estimated Number of full siblings that a random individuals has in the population (c=0.5):\n";
+                    if (params.flagks || params.flagnok)
                     {
-                        salida << "Not estimated because F value is too large\n#\n";
+                        if (params.flagnok && flagnoestimaks)
+                        {
+                            salida1 << "Not estimated because F value is too large\n#\n";
+                        }
+                        else
+                        {
+                            salida1 << params.K << "\n#\n";
+                        }
                     }
                     else
                     {
-                        salida << params.K << "\n#\n";
+                        salida1 << "Not calculated\n#\n";
                     }
                 }
-                else
-                {
-                    salida << "Not calculated\n#\n";
-                }
-            }
-            else{
-                salida << "\nThe solution based on the LD between SNPs on different chromosomes does not converge. \n";
-                if ((params.flagks) || params.flagnok || (params.K > 0))
-                {
-                    salida << "\nThe LD data and the number of siblings are incongruent to each other. \n#\n";
-                }
-            }
-
-            // DENTRO DE CROMOSOMAS:
-            log10_ncrom_sample = log10(genomesize/2); // 
-            log10_n_sample = log10(effeneind);
-            log10_nSNPs_solicitado = log10(eneloc);
-            backfp = fp;
-            //            d2_poblink = (d2slink - samy) / (samx * (1-cmed)*(1-cmed)); // APROXIMADO
-            for (fciclo = 0; fciclo < 2; ++fciclo)
-            { // Two tries in case d2 negative
-                Neant = 0;
-                if (params.flagks || params.flagnok)
-                {
-                    params.K = 0;
-                    for (i = 0; i < 30; ++i)
+                else{
+                    salida1 << "\nThe solution based on the LD between SNPs on different chromosomes does not converge. \n";
+                    if ((params.flagks) || params.flagnok || (params.K > 0))
                     {
-                        IntegralUNCROM();
-                        if (params.ks == 0)
-                        {
-                            break;
-                        }
-                        params.K = Ne / (eneind - 1) * params.ks;
-                        if ((std::abs(Ne - Neant) < 0.1) || (std::abs(Ne - Neant) < (Ne / 10000)))
-                        {
-                            break;
-                        }
-                        Neant = Ne;
+                        salida1 << "\nThe LD data and the number of siblings are incongruent to each other. \n#\n";
                     }
-                }
-                else
-                {
-                    IntegralUNCROM();
-                }
-                if (Ne < 100000000)
-                {
-                    break;                
-                }
-                fp = 0;
-            }
-            fp = backfp;
-            Ne_link = Ne;
-            if (Ne < 100000000)
-            {
-                log10_Ne_obs = log10(Ne_link);
-                for (i = 0; i < 5; ++i)
-                {
-                    lim = -nDT[i];
-                    if (i != 2)
-                    {
-                        rangos_link[i] = CalculaIntervalo_soloLD();
-                    }
-                }
-                rangos_link[2] = log10_Ne_obs;
-                for (i = 0; i < 5; ++i)
-                {
-                    rangos_link[i] = pow(10, rangos_link[i]);
-                }
-
-                salida << "#\n"<< "# Ne estimation based on LD within chromosomes:\n";
-                salida << std::fixed << std::setprecision(0);
-                salida << "# Based on " << acunlink << " pairs of SNPs within chromosomes.\n";
-                salida << std::fixed << std::setprecision(2);
-                salida << "# Ne point estimate:\n";
-                salida << rangos_link[2] << "\n";
-                salida << "# Lower limit of 50% CI:\n";
-                salida << rangos_link[1] << "\n";
-                salida << "# Upper limit of 50% CI:\n";
-                salida << rangos_link[3] << "\n";
-                salida << "# Lower limit of 90% CI:\n";
-                salida << rangos_link[0] << "\n";
-                salida << "# Upper limit of 90% CI:\n";
-                salida << rangos_link[4] << "\n";
-                salida << "# Estimated Number of full siblings that a random individuals has in the population:\n";
-                if (params.flagks || params.flagnok)
-                {
-                    if (params.flagnok && flagnoestimaks)
-                    {
-                        salida << "Not estimated because F value is too large\n#\n";
-                    }
-                    else
-                    {
-                        salida << params.K << "\n#\n";
-                    }
-                }
-                else
-                {
-                    salida << "Not calculated\n#\n";
-                }
-            }
-            else{
-                salida << "\nThe solution based on the LD between SNPs on the same chromosome does not converge. \n";
-                if ((params.flagks) || params.flagnok || (params.K > 0))
-                {
-                    salida << "\nThe LD data and the number of siblings are incongruent to each other. \n#\n";
                 }
             }
         }
-
+        else{
+            salida1 << "# Ne cannot be estimated because there is no map information.\n";
+            salida1 << "#\n";
+        }
         if (nparhermanos > 0)
         {
-            salida << "# Average number of full siblings per individuals in the sample:\n";
-            salida << params.ks<<"\n";
-            salida << "# Full sibling pairs (individuals are referenced by their ordinals in the ped file):\n";
+            salida1 << "# Average number of full siblings per individual in the sample:\n";
+            salida1 << params.ks<<"\n";
+            salida1 << "# Full sibling pairs (individuals are referenced by their ordinals in the ped file):\n";
             if (flagnoestimaks)
             {
-                salida << "Not predicted because F value is too large.\n";
+                salida1 << "Not predicted because F value is too large.\n";
             }
             else
             {
-                // for (i = 0; i < nparhermanos; ++i)
-                // {
-                //     salida << hermanos[0][i] + 1 << ", " << hermanos[1][i] + 1 << "\n";
-                // }
-                salida<<salidahermanos.str();
+                salida1<<salidahermanos.str();
             }
-            salida << "#\n";
+            salida1 << "#\n";
+            salida1 << "# (end of output)\n";
         }
     }
 
@@ -2523,7 +2526,7 @@ int main(int argc, char *argv[])
     {
         if (params.printToStdOut)
         {
-            std::string output = salida0.str()+salida.str();
+            std::string output = salida0.str()+salida1.str()+salida2.str();
            std::cout << output << std::endl;
         }
         else
@@ -2545,7 +2548,8 @@ int main(int argc, char *argv[])
             std::ofstream outputFile;
             outputFile.open(fichsal);
             outputFile << salida0.str();
-            outputFile << salida.str();
+            outputFile << salida1.str();
+            outputFile << salida2.str();
             outputFile.close();
             std::cout << " End of process. Output file " << fichsal << " generated\n";
         }
@@ -2561,22 +2565,14 @@ int main(int argc, char *argv[])
 void Ecuacion05()
 {
     int MIL, DOSMIL, i, ii, conta;
-    double sample_size, sample_size_h, samplex, sampley;
+//    double sample_size, sample_size_h, samplex, sampley;
     double d2spred, increNe;
-    double fp12, K12;
+    double K12;
     bool flagbreak = false;
 
     K12 = (1.0 + params.K / 4.0);
     MIL = 1000;
     DOSMIL = 2000;
-    fp12 = (1 + fp) * (1 + fp);
-    sample_size = effeneind;
-    sample_size_h = sample_size * 2;
-    samplex = (sample_size_h - 2.0) * (sample_size_h - 2.0) * (sample_size_h - 2.0);
-    samplex += 8.0 / 5.0 * (sample_size_h - 2.0) * (sample_size_h - 2.0);
-    samplex += 4 * (sample_size_h - 2.0);
-    samplex /= ((sample_size_h - 1.0) * (sample_size_h - 1.0) * (sample_size_h - 1.0) + (sample_size_h - 1.0) * (sample_size_h - 1.0));
-    sampley = (2.0 * sample_size_h - 4.0) / ((sample_size_h - 1.0) * (sample_size_h - 1.0));
     Ne = 1000;
     for (ii = 0; ii < 2; ++ii)
     {
@@ -2642,178 +2638,27 @@ void Ecuacion05()
 
 }
 
-//  MIGRACION entre dos subpoblaciones CON c=0.5:
-void MixEcuacion05()
-{
-    int MIL, DOSMIL, i, ii, conta;
-    double sample_size, sample_size_h, samplex, sampley;
-    double d2spred, increNe;
-    double fp12;
-    bool flagbreak = false;
-
-    // K12 = (1.0 + params.K / 4.0);
-    // MIL = 1000;
-    DOSMIL = 2000;
-    fp12 = (1 + fp) * (1 + fp);
-    sample_size = effeneind;
-    sample_size_h = sample_size * 2;
-    samplex = (sample_size_h - 2.0) * (sample_size_h - 2.0) * (sample_size_h - 2.0);
-    samplex += 8.0 / 5.0 * (sample_size_h - 2.0) * (sample_size_h - 2.0);
-    samplex += 4 * (sample_size_h - 2.0);
-    samplex /= ((sample_size_h - 1.0) * (sample_size_h - 1.0) * (sample_size_h - 1.0) + (sample_size_h - 1.0) * (sample_size_h - 1.0));
-    sampley = (2.0 * sample_size_h - 4.0) / ((sample_size_h - 1.0) * (sample_size_h - 1.0));
-    c=0.5;
-    // Ne = Ne05;
-    // Ne = std::min(std::max(Ne, 1000.0), 1000000.0);
-    Ne = 100000;
-
-    c2 = c * c;
-    c12 = (1 - c) * (1 - c);
-    m= (1-Fst)/(4*Ne*Fst*pow((params.s/(params.s-1)),2));
-
-    // ALTERNATIVO:
-    // m = (1-pow(1-1/(Fst*4*Ne)+1/(4*Ne),0.5))/2;
-
-    if (m>0.5){m=0.5;}
-    ms=params.s*m/(params.s-1);
-
-    for (ii = 0; ii < 2; ++ii)
-    {
-        increNe = Ne / (4 * (ii + 1));
-        for (i = 0; i < 20; ++i)
-        {
-            for (conta = 0; conta < DOSMIL; ++conta)
-            {
-                m12=(1-ms)*(1-ms);
-                
-                // AA=(1-m12)*m12*(1-1/(2*Ne));
-                // BB=2*(1-m12)*(1-2.2/(2*params.s*Ne))*(1-c);
-                // CC=1-(1-2.2/(2*params.s*Ne))*c12;
-                // DD=1-m12*(1-1/(2*Ne))*(1-c);
-                // EE=(1-m12)*(1-m12)*(1-c)*(1-2.2/(2*params.s*Ne));
-
-                // Db2=Wt*Fst*Fst;
-                // DbDw=Db2*(AA/DD+(EE/CC+(AA*BB)/(CC*DD))/(2*params.s*Ne*DD))+Wt*(1-Fst)*(1-Fst)/(4*params.s*params.s*Ne*Ne*CC*DD);
-                // Dw2=Db2*(EE/CC+(AA*BB)/(CC*DD))+Wt*(1-Fst)*(1-Fst)*(1+c2)/(2*params.s*Ne*CC);
-
-                Db2=(Wt)*Fst*Fst;
-                Dw2=(Wt)*(1-Fst)*(1-Fst)*(1+c2)/(4*Ne*(1-c12)+2.2*c12);
-                DbDw=(4*(Wt)*Fst*Fst*m12*(m)+(Dw2)/(4*Ne))/(1-m12*(1-c)*(1-1/2/Ne));
-
-                Dw2p = Dw2*c12 + Db2*(1-m12)*(1-m12) + DbDw*2*(1-m12)*(1-c);
-                DbDwp = DbDw*m12*(1-c) + Db2*m12*(1-m12);
-                Db2p = Db2*m12*m12;                
-
-                Dw2=Dw2p;
-                DbDw=DbDwp;
-                Db2=Db2p;
-
-                d2spred=(Dw2+4*Db2+4*DbDw)/Wt*samplex+sampley *fp12;
-
-                if (d2spred > d2s05)
-                {
-                    if (increNe < 0)
-                    {
-                        increNe = -increNe / 5;
-                        break;
-                    }
-                }
-                if (d2spred < d2s05)
-                {
-                    if (increNe > 0)
-                    {
-                        increNe = -increNe / 5;
-                        break;
-                    }
-                }
-                if ((Ne + increNe) < 3)
-                {
-                    increNe = increNe / 5;
-                    break;
-                }
-                else
-                {
-                    Ne += increNe;
-                    m= (1-Fst)/(4*Ne*Fst*pow((params.s/(params.s-1)),2));
-
-                    // ALTERNATIVO:
-                    // m = (1-pow(1-1/(Fst*4*Ne)+1/(4*Ne),0.5))/2;
-
-                    if (m>0.5){m=0.5;}
-                    ms=params.s*m/(params.s-1);
-                }
-                if (abs(increNe) < 0.01)
-                {
-                    break;
-                }
-                if (Ne > 100000000)
-                {
-                    flagbreak = true;
-                    break;
-                }
-                // if (flagbreak){
-                //     break;
-                // }
-            }
-            if (abs(increNe) < 0.1)
-            {
-                break;
-            }
-            if (flagbreak)
-            {
-                break;
-            }
-        }
-        if (flagbreak)
-        {
-            break;
-        }
-    }
-
-}
-
 //  DENTRO Y ENTRE CROMOSOMAS :
 void IntegralVARIOSCROM()
 {
     int MIL, DOSMIL, i, ii, j, minj, k, conta;
-    double sample_size, sample_size_h, samplex, sampley;
+    // double sample_size, sample_size_h, samplex, sampley;
     double d2spred, increL, increNe, sumad2spred, sumafrec;
-    double fp12, tamacrom, distmin, K12;
+    double tamacrom, distmin, K12;
     bool flagbreak = false;
 
     K12 = (1.0 + params.K / 4.0);
-    tamacrom = genomesize / float(ncrom_sample_int);
-    // distmin = genomesize / eneloc;
-    // if (distmin > (tamacrom))
-    // {
-    //     distmin = tamacrom;
-    // }
-    // MIL = int(1.0 / distmin);
-    // // if (MIL<1000){MIL*=2;}
-    // // MIL=int(float(MIL)*tamacrom);
-    // if (MIL < 100)
-    // {
-    //     MIL = 100;
-    // }
 
     increL=increMorgans;
-    if (flag_z){
-        distmin=increL/2 + params.z/100; // en Morgans
-        minj=int(distmin/increMorgans);
+    if (flag_z && !flag_Gs){
+        distmin=increL/2 + params.z/100; // en Morgans. Se asume que los sitios se distribuyen al azar
+        minj=int(distmin/increL);
     }
     else{
-        distmin=increL/2;
+        distmin=increL/2;  // Se asume que los sitios se distribuyen al azar
         minj=0;
     }
-    fp12 = (1 + fp) * (1 + fp);
     DOSMIL = 2000;
-    sample_size = effeneind;
-    sample_size_h = sample_size * 2;
-    samplex = (sample_size_h - 2.0) * (sample_size_h - 2.0) * (sample_size_h - 2.0);
-    samplex += 8.0 / 5.0 * (sample_size_h - 2.0) * (sample_size_h - 2.0);
-    samplex += 4 * (sample_size_h - 2.0);
-    samplex /= ((sample_size_h - 1.0) * (sample_size_h - 1.0) * (sample_size_h - 1.0) + (sample_size_h - 1.0) * (sample_size_h - 1.0));
-    sampley = (2.0 * sample_size_h - 4.0) / ((sample_size_h - 1.0) * (sample_size_h - 1.0));
     Ne = 1000;
     for (ii = 0; ii < 2; ++ii)
     {
@@ -2847,8 +2692,8 @@ void IntegralVARIOSCROM()
                         d2spred += (sumad2spred / sumafrec) * float(acunlink) / float(acun05+acunlink);
                     }
                     else{
-                        d2spred = (Ncrom-1)/Ncrom * d2spred;
-                        d2spred += (sumad2spred / sumafrec) / Ncrom;
+                        d2spred = float(ncrom_sample_int-1)/float(ncrom_sample_int) * d2spred;
+                        d2spred += (sumad2spred / sumafrec) / ncrom_sample_int;
                     }
                 }
                 if (d2spred > d2s)
@@ -2912,40 +2757,23 @@ void IntegralVARIOSCROM()
 void IntegralUNCROM()
 {
     int MIL, DOSMIL, i, ii, j,minj, k, conta;
-    double sample_size, sample_size_h, samplex, sampley;
+    // double sample_size, sample_size_h, samplex, sampley;
     double d2spred, increL, increNe, sumad2spred, sumafrec;
-    double fp12, tamacrom, distmin, K12;
+    double tamacrom, distmin, K12;
     bool flagbreak = false;
 
     K12 = (1.0 + params.K / 4.0);
-    // tamacrom = genomesize / float(ncrom_sample_int);
-    // distmin = genomesize / eneloc;
-    // if (distmin > (tamacrom))
-    // {
-    //     distmin = tamacrom;
-    // }
-    // increL=increMorgans;
-    // minj=int(distmin/increL);
-    // distmin=minj*increL+increL/2;
-
     increL=increMorgans;
-    if (flag_z){
-        distmin=increL/2 + params.z/100;
-        minj=int(distmin/increMorgans);
+
+    if (flag_z && !flag_Gs){
+        distmin=increL/2 + params.z/100; // en Morgans. Se asume que los sitios se distribuyen al azar
+        minj=int(distmin/increL);
     }
     else{
-        distmin=increL/2;
+        distmin=increL/2;  // Se asume que los sitios se distribuyen al azar
         minj=0;
     }
-    fp12 = (1 + fp) * (1 + fp);
     DOSMIL = 2000;
-    sample_size = effeneind;
-    sample_size_h = sample_size * 2;
-    samplex = (sample_size_h - 2.0) * (sample_size_h - 2.0) * (sample_size_h - 2.0);
-    samplex += 8.0 / 5.0 * (sample_size_h - 2.0) * (sample_size_h - 2.0);
-    samplex += 4 * (sample_size_h - 2.0);
-    samplex /= ((sample_size_h - 1.0) * (sample_size_h - 1.0) * (sample_size_h - 1.0) + (sample_size_h - 1.0) * (sample_size_h - 1.0));
-    sampley = (2.0 * sample_size_h - 4.0) / ((sample_size_h - 1.0) * (sample_size_h - 1.0));
     Ne = 1000;
     for (ii = 0; ii < 2; ++ii)
     {
@@ -3012,9 +2840,6 @@ void IntegralUNCROM()
                     flagbreak = true;
                     break;
                 }
-                // if (flagbreak){
-                //     break;
-                // }
             }
             if (abs(increNe) < 0.1)
             {
@@ -3032,61 +2857,46 @@ void IntegralUNCROM()
     }
 }
 
-void MixIntegralUNCROM(){
-    int MIL, DOSMIL, i, ii, j,minj, k, conta;
-    double sample_size, sample_size_h, samplex, sampley;
-    double d2spred, increL, increNe, sumad2spred, sumafrec;
-    double fp12, tamacrom, distmin, K12;
-    bool flagbreak = false;
-
-    K12 = (1.0 + params.K / 4.0);
-    // tamacrom = genomesize / float(ncrom_sample_int);
-    // distmin = genomesize / eneloc;
-    // if (distmin > (tamacrom))
-    // {
-    //     distmin = tamacrom;
-    // }
-    // increL=increMorgans;
-    // minj=int(distmin/increL);
-    // distmin=minj*increL+increL/2;
+void Mix05ylink(){
+    int i, ii, j,minj;
+    double increL, sumad2spred,sumad2ppred, sumafrec;
+    double d2ppred1,d2ppred2;
+    double tamacrom, distmin;
+    double minlog, maxlog, increlog,logNe;
+    double minNedif, dif;
+    int CIEN=50;
 
     increL=increMorgans;
-    if (flag_z){
-        distmin=increL/2 + params.z/100;
-        minj=int(distmin/increMorgans);
+    if (flag_z && !flag_Gs){
+        distmin=increL/2 + params.z/100; // en Morgans. Se asume que los sitios se distribuyen al azar
+        minj=int(distmin/increL);
     }
     else{
-        distmin=increL/2;
+        distmin=increL/2;  // Se asume que los sitios se distribuyen al azar
         minj=0;
     }
-    fp12 = (1 + fp) * (1 + fp);
-    DOSMIL = 2000;
-    sample_size = effeneind;
-    sample_size_h = sample_size * 2;
-    samplex = (sample_size_h - 2.0) * (sample_size_h - 2.0) * (sample_size_h - 2.0);
-    samplex += 8.0 / 5.0 * (sample_size_h - 2.0) * (sample_size_h - 2.0);
-    samplex += 4 * (sample_size_h - 2.0);
-    samplex /= ((sample_size_h - 1.0) * (sample_size_h - 1.0) * (sample_size_h - 1.0) + (sample_size_h - 1.0) * (sample_size_h - 1.0));
-    sampley = (2.0 * sample_size_h - 4.0) / ((sample_size_h - 1.0) * (sample_size_h - 1.0));
-    // Ne = Nelink;
-    Ne=100000;
-    // if (Ne<1000){Ne=1000;}
-    // if (Ne>1000000){Ne=1000000;}
-    m= (1-Fst)/(4*Ne*Fst*pow((float(params.s)/float(params.s-1)),2));
-
-    // ALTERNATIVO:
-    // m = (1-pow(1-1/(Fst*4*Ne)+1/(4*Ne),0.5))/2;
-
-    if (m>0.5){m=0.5;}
-    ms=params.s*m/(params.s-1);
-    for (ii = 0; ii < 2; ++ii)
-    {
-        increNe = Ne / (4 * (ii + 1));
-        for (i = 0; i < 10; ++i)
-        {
-            for (conta = 0; conta < DOSMIL; ++conta)
-            {
+    
+    minlog=0;
+    maxlog=6; //maximum Ne = 10^6 per subpop
+    increlog=maxlog/CIEN;
+    mind2dif=99999999; // no valido
+    minNedif=99999999;
+    minm=99999999;
+    for (ii=0;ii<3;++ii){
+        logNe=minlog;
+        while(logNe<maxlog){
+            logNe+=increlog;
+            Ne=pow(10,logNe);
+            // FORMULA ABREVIADA:
+            m= (1-Fst)/(4*Ne*Fst*pow((float(params.s)/float(params.s-1)),2));
+            // FORMULA COMPLETA:
+            // m = (1-pow(1-1/(2*params.s/(params.s-1)*Ne)*(1-Fst)/Fst,0.5))/(params.s/(params.s-1));
+            ms=float(params.s)*m/float(params.s-1);
+            m12=(1-ms)*(1-ms);
+            if ((m>0) && (m<0.5)){
+                // AHORA VAN LOS DEl MISMO CROMOSOMA
                 sumad2spred = 0;
+                // sumad2ppred = 0;
                 distancia = distmin;
                 sumafrec = 0;
                 j = minj;
@@ -3096,107 +2906,126 @@ void MixIntegralUNCROM(){
                     c2 = c * c;
                     c12 = (1 - c) * (1 - c);
 
-                    // m12=(1-m)*(1-m);
-                    // m22=(1-2*m)*(1-2*m);
-                    m12=(1-ms)*(1-ms);
+                     // FORMULACION ABREVIADA:
+                    Db2=Fst*Fst/(params.s-1);
+                    // Dw2=(1-Fst)*(1-Fst)*(1+c2)/(2*params.s*Ne*(1-c12)+2.2*c12);// **************************
+                    Dw2=(1-2*Fst*(1-Fst)-Db2)*(1+c2)/(2*params.s*Ne*(1-c12)+2.2*c12);
+                    // DbDw=(kk2*Db2*(m))/(1-m12*(1-c));// **************************
+                    DbDw=(kk2*Db2*m12*(1-m)*(m)+(Dw2)/(2*params.s*Ne))/(1-m12*(1-c)*(1-1/params.s/Ne));
 
-                    // AA=(1-m12)*m12*(1-1/(2*Ne));
-                    // BB=2*(1-m12)*(1-2.2/(2*params.s*Ne))*(1-c);
-                    // CC=1-(1-2.2/(2*params.s*Ne))*c12;
-                    // DD=1-m12*(1-1/(2*Ne))*(1-c);
-                    // EE=(1-m12)*(1-m12)*(1-c)*(1-2.2/(2*params.s*Ne));
+                    if (params.flag_addsamplinggeneration){ // Se asume generacion adicional de tamaño infinito y luego muestreo
+                        Dw2p = Dw2*c12 + kk4*Db2*(1-m)*(1-m)*m*m + 2*kk2*DbDw*(1-m)*m*(1-c);
+                        DbDwp = DbDw*m12*(1-c) + kk2*Db2*m12*(1-m)* m;
+                        Db2p = Db2*m12*m12;                
+                        d2ppred1=Dw2p+4*Db2p+4*DbDwp;           
+                        d2spred1=(d2ppred1)*samplex+sampley * fp12;
+                    }
+                    else{
+                        d2ppred1=Dw2+4*Db2+4*DbDw;           
+                        d2spred1=(d2ppred1)*samplex+sampley * fp12;// Se asume muestreo directo sobre la última generación finita
+                    }
 
-                    // Db2=Wt*Fst*Fst;
-                    // DbDw=Db2*(AA/DD+(EE/CC+(AA*BB)/(CC*DD))/(2*params.s*Ne*DD))+Wt*(1-Fst)*(1-Fst)/(4*params.s*params.s*Ne*Ne*CC*DD);
-                    // Dw2=Db2*(EE/CC+(AA*BB)/(CC*DD))+Wt*(1-Fst)*(1-Fst)*(1+c2)/(2*params.s*Ne*CC);
-
-                    Db2=(Wt)*Fst*Fst;
-                    Dw2=(Wt)*(1-Fst)*(1-Fst)*(1+c2)/(4*Ne*(1-c12)+2.2*c12);
-                    DbDw=(4*(Wt)*Fst*Fst*m12*(m)+(Dw2)/(4*Ne))/(1-m12*(1-c)*(1-1/2/Ne));
-
-                    Dw2p = Dw2*c12 + Db2*(1-m12)*(1-m12) + DbDw*2*(1-m12)*(1-c);
-                    DbDwp = DbDw*m12*(1-c) + Db2*m12*(1-m12);
-                    Db2p = Db2*m12*m12;                
-                    
-                    Dw2=Dw2p;
-                    DbDw=DbDwp;
-                    Db2=Db2p;
-
-                    // d2spred=(Dw2+4*Db2+4*DbDw)/Wt;
-                    d2spred=(Dw2+4*Db2+4*DbDw)/Wt*samplex+sampley * fp12;
-                    sumad2spred += mapdist[j] * d2spred; // La integral
+                    sumad2spred += mapdist[j] * d2spred1; // La integral
+                    // sumad2ppred += mapdist[j] * d2ppred1; // La integral
                     distancia += increL;
                     sumafrec += mapdist[j];
                     ++j;
                 }
                 if (sumafrec > 0)
                 {
-                    // d2spred = (sumad2spred / sumafrec)*samplex+sampley * fp12;
-                    d2spred = (sumad2spred / sumafrec);
+                    d2spred1 = (sumad2spred / sumafrec);
+                    // d2ppred1 = (sumad2ppred / sumafrec);
                 }
                 else
                 {
                     std::cerr << "Within chromosome integral cannot be computed." << std::endl;
                     exit(EXIT_FAILURE);
                 }
-                if (d2spred > d2slink)
-                {
-                    if (increNe < 0)
-                    {
-                        increNe = -increNe / 5;
-                        break;
-                    }
-                }
-                if (d2spred < d2slink)
-                {
-                    if (increNe > 0)
-                    {
-                        increNe = -increNe / 5;
-                        break;
-                    }
-                }
-                if ((Ne + increNe) < 3)
-                {
-                    increNe = increNe / 5;
-                    break;
-                }
-                else
-                {
-                    Ne += increNe;
-                    m= (1-Fst)/(4*Ne*Fst*pow((float(params.s)/float(params.s-1)),2));
+                //
+                // AHORA VAN LOS DE DISTINTO CROMOSOMA
+                c = 0.5;
+                c2 = c * c;
+                c12 = (1 - c) * (1 - c);
 
-                    // ALTERNATIVO:
-                    // m = (1-pow(1-1/(Fst*4*Ne)+1/(4*Ne),0.5))/2;
-                    
-                    if (m>0.5){m=0.5;}
-                    ms=float(params.s)*m/float(params.s-1);
-               }
-                if (abs(increNe) < 0.1)
-                {
-                    break;
+                // FORMULACION COMPLETA:
+                // AA=kk2*m12*(1-m)*m*(1-1/(params.s*Ne));
+                // BB=2*kk2*m*(1-m)*(1-2.2/(2*params.s*Ne))*(1-c);
+                // CC=1-(1-2.2/(2*params.s*Ne))*c12;
+                // DD=1-m12*(1-1/(params.s*Ne))*(1-c);
+                // EE=kk4*(1-m)*(1-m)*m*m*(1-2.2/(2*params.s*Ne));
+                // Db2=Wt*Fst*Fst/(params.s-1);
+                // DbDw=Db2*(AA/DD+(EE/CC+(AA*BB)/(CC*DD))/(2*params.s*Ne*DD))+Wt*(1-2*Fst*(1-Fst)-Fst*Fst/(params.s-1))/(4*params.s*params.s*Ne*Ne*CC*DD);
+                // Dw2=Db2*(EE/CC+(AA*BB)/(CC*DD))+Wt*(1-2*Fst*(1-Fst)-Fst*Fst/(params.s-1))*(1+c2)/(2*params.s*Ne*CC);
+                // Db2/=Wt;
+                // Dw2/=Wt;
+                // DbDw/=Wt;
+                
+                // FORMULACION ABREVIADA:
+                Db2=Fst*Fst/(params.s-1);
+                // Dw2=(1-Fst)*(1-Fst)*(1+c2)/(2*params.s*Ne*(1-c12)+2.2*c12);// **************************
+                Dw2=(1-2*Fst*(1-Fst)-Db2)*(1+c2)/(2*params.s*Ne*(1-c12)+2.2*c12);
+                // DbDw=(kk2*Db2*(m))/(1-m12*(1-c));// **************************
+                DbDw=(kk2*Db2*m12*(1-m)*(m)+(Dw2)/(2*params.s*Ne))/(1-m12*(1-c)*(1-1/params.s/Ne));
+
+                if (params.flag_addsamplinggeneration){ // Se asume generacion adicional de tamaño infinito y luego muestreo
+                    Dw2p = Dw2*c12 + kk4*Db2*(1-m)*(1-m)*m*m + 2*kk2*DbDw*(1-m)*m*(1-c);
+                    DbDwp = DbDw*m12*(1-c) + kk2*Db2*m12*(1-m)* m;
+                    Db2p = Db2*m12*m12;
+                    d2ppred2=Dw2p+4*Db2p+4*DbDwp;           
+                    d2spred2=(d2ppred2)*samplex+sampley * fp12;
                 }
-                if (Ne > 100000000)
-                {
-                    flagbreak = true;
-                    break;
+                else{
+                    d2ppred2=Dw2+4*Db2+4*DbDw;
+                    d2spred2=(d2ppred2)*samplex+sampley * fp12;// Se asume muestreo directo sobre la última generación finita
                 }
-                // if (flagbreak){
-                //     break;
-                // }
-            }
-            if (abs(increNe) < 0.1)
-            {
-                break;
-            }
-            if (flagbreak)
-            {
-                break;
+
+                dif=pow((d2spred1-d2slink)/d2slink,2)+pow((d2spred2-d2s05)/d2s05,2);
+                if (dif<mind2dif){
+                    mind2dif=dif;
+                    minNedif=Ne;
+                    minm=m;
+                    dw2=Dw2;
+                    db2=Db2;
+                    dbdw=DbDw;
+                }
             }
         }
-        if (flagbreak)
-        {
+        Ne=minNedif;
+        if (Ne==99999999){
             break;
         }
+        minlog=log10(Ne)-increlog;
+        maxlog=log10(Ne)+increlog;
+        increlog=(maxlog-minlog)/CIEN;
+    }
+}
+
+void CalculaOtros(){
+
+    mind2dif=999999999;
+    m= (1-Fst)/(4*Ne*Fst*pow((float(nsubs)/float(nsubs-1)),2));
+    ms=float(nsubs)*m/float(nsubs-1);
+    m12=(1-ms)*(1-ms);
+
+    if ((m>0) && (m<0.5)){
+
+        // FORMULACION ABREVIADA:
+        Db2=Fst*Fst/(nsubs-1);
+        // Dw2=(1-Fst)*(1-Fst)*(1+c2)/(2*nsubs*Ne*(1-c12)+2.2*c12);// ******************************************
+        Dw2=(1-2*Fst*(1-Fst)-Db2)*(1+c2)/(2*nsubs*Ne*(1-c12)+2.2*c12);
+        // DbDw=(kk2*Db2*(m))/(1-m12*(1-c));// ******************************************
+        DbDw=(kk2*Db2*m12*(1-m)*(m)+(Dw2)/(2*nsubs*Ne))/(1-m12*(1-c)*(1-1/nsubs/Ne));
+
+        if (params.flag_addsamplinggeneration){ // Se asume generacion adicional de tamaño infinito y luego muestreo
+            Dw2p = Dw2*c12 + kk4*Db2*(1-m)*(1-m)*m*m + 2*kk2*DbDw*(1-m)*m*(1-c);
+            DbDwp = DbDw*m12*(1-c) + kk2*Db2*m12*(1-m)* m;
+            Db2p = Db2*m12*m12;                
+            d2spred2=(Dw2p+4*Db2p+4*DbDwp);
+        }
+        else{
+            d2spred2=(Dw2+4*Db2+4*DbDw);// d2 esperado de la población
+        }
+        mind2dif=std::abs(d2spred2-d2p05); // diferencia entre esperado y real.
     }
 }
 

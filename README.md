@@ -154,3 +154,5 @@ tar -xvf example/sample_data.tar.gz -C ./example
 
 less example/girnock_clean_currentNe2_mix_OUTPUT.txt
 ```
+# Acknowledgements
+This study forms part of the Marine Science Programme (ThinkInAzul) supported by the Ministerio de Ciencia e Innovación and Xunta de Galicia with funding from the European Union NextGenerationEU (PRTR-C17.I1) and European Maritime and Fisheries Fund.

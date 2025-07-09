@@ -352,6 +352,10 @@ void readFile_ped(std::string fichinput1, std::string fichinput2, char (&populat
                 cromocodback = cromocod;
                 rangocromo[ncromos] = contalines;
                 ++ncromos;
+                if (ncromos >= MAXCROMO) {
+                    std::cerr << "The number of chromosomes in the input file exceeds the maximum number of chromosomes allowed (" << MAXCROMO << ")" << std::endl;
+                    exit(EXIT_FAILURE);
+                }
             }
             cromo[contalines] = ncromos;
 
@@ -497,6 +501,10 @@ void readFile_tped(std::string fichinput1, char (&population)[MAXIND][MAXLOCI], 
             cromocodback = cromocod;
             rangocromo[ncromos] = contalines;
             ++ncromos;
+            if (ncromos >= MAXCROMO) {
+                std::cerr << "The number of chromosomes in the input file exceeds the maximum number of chromosomes allowed (" << MAXCROMO << ")" << std::endl;
+                exit(EXIT_FAILURE);
+            }
         }
         cromo[contalines] = ncromos;
 
@@ -848,6 +856,10 @@ void readFile_vcf(std::string fichinput1, char (&population)[MAXIND][MAXLOCI], P
                     cromocodback = cromocod;
                     rangocromo[ncromos] = contalines;
                     ++ncromos;
+                    if (ncromos >= MAXCROMO) {
+                        std::cerr << "The number of chromosomes in the input file exceeds the maximum number of chromosomes allowed (" << MAXCROMO << ")" << std::endl;
+                        exit(EXIT_FAILURE);
+                    }
                 }
                 cromo[contalines] = ncromos;
                 ++contalines; // para crom

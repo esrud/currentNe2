@@ -155,8 +155,7 @@ tar -xvf example/sample_data.tar.gz -C ./example
 less example/girnock_clean_currentNe2_mix_OUTPUT.txt
 ```
 # Acknowledgements
-This study forms part of the Marine Science Programme (ThinkInAzul) supported by the Ministerio de Ciencia e Innovación and Xunta de Galicia with funding from the European Union NextGenerationEU (PRTR-C17.I1) and European Maritime and Fisheries Fund. 
-This work is also part of I+D+i project PID2020-114426GB-C21 financed by MICIU/AEI /10.13039/501100011033 (Agencia Estatal de Investigación, Ministerio de Ciencia, Innovación y Universidades, Spain).
+This study forms part of I+D+i project PID2020-114426GB-C21 financed by MICIU/AEI /10.13039/501100011033 (Agencia Estatal de Investigación, Ministerio de Ciencia, Innovación y Universidades, Spain), and the Marine Science Programme (ThinkInAzul) supported by the Ministerio de Ciencia e Innovación and Xunta de Galicia with funding from the European Union NextGenerationEU (PRTR-C17.I1) and European Maritime and Fisheries Fund. 
 
 # How to cite
 Santiago, E., Köpke, C. & Caballero, A. Accounting for population structure and data quality in demographic inference with linkage disequilibrium methods. Nat Commun 16, 6054 (2025). [https://doi.org/10.1038/s41467-025-61378-w](https://doi.org/10.1038/s41467-025-61378-w)
